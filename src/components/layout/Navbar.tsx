@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -24,7 +25,7 @@ export const Navbar = () => {
         </Link>
         <div className="flex items-center gap-2 sm:gap-4">
           {navItems.map((item) => (
-            <Link key={item.href} href={item.href} legacyBehavior passHref>
+            <Link key={item.href} href={item.href}>
               <Button
                 variant="ghost"
                 className={cn(
