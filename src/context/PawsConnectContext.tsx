@@ -5,7 +5,6 @@ import type { Dog, Profile, UserRole, HealthRecord, FeedingSchedule, Vaccination
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import type { User as SupabaseUser, Session as SupabaseSession, PostgrestError } from '@supabase/supabase-js';
-// The 'DbDog' type will now represent a row from the 'dogs_for_adoption_view'.
 import type { Database } from '@/types/supabase';
 type DbDog = Database['public']['Views']['dogs_for_adoption_view']['Row'];
 type DbProfile = Database['public']['Tables']['profiles']['Row'];
@@ -26,9 +25,11 @@ interface PawsConnectContextType {
   profile: Profile | null;
   session: SupabaseSession | null;
   isLoadingAuth: boolean;
+  isUpdatingProfile: boolean;
   login: (email: string, password: string) => Promise<{ session: SupabaseSession | null; error: string | null }>;
   signUp: (email: string, password: string, role: UserRole, fullName?: string | null) => Promise<{ user: SupabaseUser | null; error: string | null }>;
   logout: () => Promise<{ error: string | null }>;
+  updateProfile: (updates: { fullName?: string | null; avatarUrl?: string | null }) => Promise<{ success: boolean; error?: string | null; updatedProfile?: Profile | null }>;
 }
 
 const PawsConnectContext = createContext<PawsConnectContextType | undefined>(undefined);
@@ -88,6 +89,8 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
   const [session, setSession] = useState<SupabaseSession | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+
 
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
@@ -166,24 +169,21 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
 
         if (isErrorAnEmptyObject) {
           console.error(
-            `Error fetching dogs from Supabase view '${sourceToQuery}': Received an EMPTY error object. This STRONGLY indicates Row Level Security (RLS) policies or table/view permission issues are preventing full access or causing an anomaly. Please check:\n\n` +
+            `Error fetching dogs from Supabase view '${sourceToQuery}': Received an EMPTY error object. This STRONGLY indicates Row Level Security (RLS) policies or table/view permission issues. Current dogsData (might be undefined/null/empty array): ${JSON.stringify(dogsData)}\n\n` +
             "【請檢查您的 Supabase 設定】:\n" +
-            `1. RLS policies on the VIEW '${sourceToQuery}'.\n` +
-            "2. RLS policies on all UNDERLYING TABLES used by the view (e.g., 'pets', 'health_records', 'feeding_records', 'vaccine_records'). Ensure the querying role ('anon' or 'authenticated') has SELECT permissions.\n" +
-            "3. Data existence: Verify that data exists in the 'pets' table and related tables that would match the view's criteria.\n" +
-            "4. Supabase Logs: Check the logs in your Supabase project dashboard (Database > Logs or Query Performance) for more detailed error messages from Postgres.\n" +
-            "5. View Definition: Double-check the view's SQL definition for correctness and that it can properly access and join data from all underlying tables.\n" +
-            `6. Returned Data State: Note that even if some data was returned (dogsData is not null/empty), an empty error object signifies a problem. Current dogsData: ${JSON.stringify(dogsData)}`,
+            `1. RLS policies on the VIEW '${sourceToQuery}'. Ensure the querying role ('anon' or 'authenticated') has SELECT permissions.\n` +
+            "2. RLS policies on all UNDERLYING TABLES used by the view (e.g., 'pets', 'health_records', 'feeding_records', 'vaccine_records'). The querying role needs SELECT access on these too.\n" +
+            "3. Data existence: Verify that data exists in the 'pets' table and related tables that would match the view's criteria and RLS.\n" +
+            "4. Supabase Logs: Check the logs in your Supabase project dashboard (Database > Logs or Query Performance) for more detailed error messages from Postgres related to permission denials.\n" +
+            "5. View Definition: Double-check the view's SQL definition for correctness and that it can properly access and join data from all underlying tables.\n",
             "原始錯誤物件:", dogsError
           );
         } else {
-          // This means dogsError is not null, and it's NOT an empty object. So it's a PostgrestError with actual content.
           console.error(`Error fetching dogs from Supabase view '${sourceToQuery}':`, dogsError);
         }
         setMasterDogList([]);
-        setLikedDogs([]); // Also reset liked dogs if initial fetch fails
+        setLikedDogs([]);
       } else if (dogsData && dogsData.length > 0) {
-        // Successfully fetched dogs
         const allDogsFromDb = dogsData.map(mapDbDogToDogType);
         setMasterDogList(allDogsFromDb);
 
@@ -205,14 +205,13 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
             setLikedDogs([]); 
         }
       } else {
-         // No error from Supabase, but dogsData is null, undefined, or an empty array.
         console.warn(
             `Warning: Fetched no dogs from Supabase view '${sourceToQuery}' (data is null, undefined, or empty array) and no error was reported by Supabase. This might be due to:\n` +
-            "1. Row Level Security (RLS) policies silently filtering all records.\n" +
-            "2. The view or underlying tables being genuinely empty or having no records matching the view's criteria.\n\n" +
+            "1. Row Level Security (RLS) policies silently filtering all records from the view or its underlying tables.\n" +
+            "2. The view or underlying tables being genuinely empty or having no records matching the view's criteria and RLS.\n\n" +
             "【請檢查您的 Supabase 設定】:\n" +
             `* RLS policies on the VIEW '${sourceToQuery}' and its UNDERLYING TABLES.\n` +
-            "* Data existence in 'pets' and related tables.\n"
+            "* Data existence in 'pets' and related tables that satisfies RLS conditions.\n"
         );
         setMasterDogList([]);
         setLikedDogs([]);
@@ -352,6 +351,51 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
     return { error: null };
   };
 
+  const updateProfile = async (updates: { fullName?: string | null; avatarUrl?: string | null }): Promise<{ success: boolean; error?: string | null; updatedProfile?: Profile | null }> => {
+    if (!user) {
+      return { success: false, error: "使用者未登入。" };
+    }
+    setIsUpdatingProfile(true);
+    try {
+      const profileUpdateData: Partial<DbProfile> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (updates.fullName !== undefined) {
+        profileUpdateData.full_name = updates.fullName;
+      }
+      if (updates.avatarUrl !== undefined) {
+        profileUpdateData.avatar_url = updates.avatarUrl;
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(profileUpdateData)
+        .eq('id', user.id)
+        .select()
+        .single<DbProfile>();
+
+      if (error) throw error;
+
+      if (data) {
+        const newProfile: Profile = {
+          id: data.id,
+          role: data.role as UserRole,
+          fullName: data.full_name,
+          avatarUrl: data.avatar_url,
+          updatedAt: data.updated_at,
+        };
+        setProfile(newProfile); // Update local context state
+        return { success: true, updatedProfile: newProfile };
+      }
+      return { success: false, error: "更新個人資料失敗，未收到回傳資料。" };
+    } catch (error: any) {
+      console.error("更新個人資料時發生錯誤:", error);
+      return { success: false, error: error.message || "更新個人資料時發生未預期的錯誤。" };
+    } finally {
+      setIsUpdatingProfile(false);
+    }
+  };
+
   return (
     <PawsConnectContext.Provider value={{ 
         dogsToSwipe, 
@@ -367,9 +411,11 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         session,
         profile,
         isLoadingAuth,
+        isUpdatingProfile,
         login,
         signUp,
-        logout
+        logout,
+        updateProfile
     }}>
       {children}
     </PawsConnectContext.Provider>
@@ -383,5 +429,3 @@ export const usePawsConnect = () => {
   }
   return context;
 };
-
-    
