@@ -128,10 +128,8 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
       email,
       password,
       options: {
-        data: {
-          // This data is available on the user object post-signup if email confirmation is off
-          // For profile table, we'll create it after user confirms (or directly if auto-confirm)
-        }
+        // Data passed here is stored in auth.users.raw_user_meta_data
+        // It's generally better to store profile data in a separate 'profiles' table
       }
     });
 
@@ -147,12 +145,11 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         .insert({ 
             id: authData.user.id, 
             role, 
-            full_name: fullName, 
+            full_name: fullName, // Ensure full_name is correctly passed
             updated_at: new Date().toISOString() 
         });
       
       if (profileError) {
-        // Potentially roll back user creation or handle error appropriately
         console.error("Error creating profile:", profileError);
         // For simplicity, we proceed, but in a real app, you might want to handle this more robustly.
       } else {
@@ -169,6 +166,11 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
     setSession(null);
     setUser(null);
     setProfile(null);
+    // Reset dog-related state on logout if desired
+    setLikedDogs([]);
+    setSeenDogIds(new Set());
+    setCurrentDogIndex(0);
+    setDogsToSwipe(mockDogs); // Or refetch/clear
     setIsLoadingAuth(false);
     return { error };
   };
