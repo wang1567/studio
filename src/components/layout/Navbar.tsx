@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { Dog, Users, Heart, UserCircle, LogIn, LogOut } from 'lucide-react';
+import { Dog, Users, Heart, UserCircle, LogIn, LogOut, UserCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -48,10 +48,11 @@ export const Navbar = () => {
         <div className="flex items-center gap-2 sm:gap-3">
           {navItems.map((item) => {
             if (item.requiresAuth && !user && !isLoadingAuth) return null;
-            if (item.href === '/profile' && user) return null; // Handled by dropdown
+            // Profile link is handled by dropdown, so no need for this check:
+            // if (item.href === '/profile' && user) return null; 
 
             return (
-              <Link key={item.href} href={item.href} passHref>
+              <Link key={item.href} href={item.href}>
                 <Button
                   variant="ghost"
                   className={cn(
@@ -76,17 +77,17 @@ export const Navbar = () => {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
                   <Avatar className="h-9 w-9">
-                    <AvatarImage src={profile.avatarUrl || undefined} alt={profile.fullName || user.email || 'User'} data-ai-hint="person avatar" />
+                    <AvatarImage src={profile?.avatarUrl || undefined} alt={profile?.fullName || user.email || 'User'} data-ai-hint="person avatar" />
                     <AvatarFallback className="bg-primary/20 text-primary">
-                       {getInitials(profile.fullName) || <UserCircle size={20}/>}
+                       {getInitials(profile?.fullName) || <UserCircle2 size={20}/>}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
-                  <div className="font-medium truncate">{profile.fullName || user.email}</div>
-                  <div className="text-xs text-muted-foreground capitalize">{profile.role}</div>
+                  <div className="font-medium truncate">{profile?.fullName || user.email || 'User'}</div>
+                  <div className="text-xs text-muted-foreground capitalize">{profile?.role || 'N/A'}</div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
@@ -103,7 +104,7 @@ export const Navbar = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Link href="/auth" passHref>
+            <Link href="/auth">
               <Button variant="ghost" className={cn(
                 "flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 h-auto sm:h-10",
                  pathname === "/auth" ? "text-primary font-semibold" : "text-foreground/70 hover:text-primary"
