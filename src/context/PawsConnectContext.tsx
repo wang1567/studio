@@ -166,10 +166,10 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
 
       if (dogsError) {
         const isErrorAnEmptyObject = typeof dogsError === 'object' && dogsError !== null && Object.keys(dogsError).length === 0;
-
         if (isErrorAnEmptyObject) {
-          console.error(
-            `Error fetching dogs from Supabase view '${sourceToQuery}': Received an EMPTY error object. This STRONGLY indicates Row Level Security (RLS) policies or table/view permission issues. Current dogsData (might be undefined/null/empty array): ${JSON.stringify(dogsData)}\n\n` +
+           console.error(
+            `Error fetching dogs from Supabase view '${sourceToQuery}': Received an EMPTY error object. This STRONGLY indicates Row Level Security (RLS) policies or table/view permission issues.\n` +
+            `Current dogsData (might be undefined/null/empty array, which is unusual with an empty error): ${JSON.stringify(dogsData)}\n\n` +
             "【請檢查您的 Supabase 設定】:\n" +
             `1. RLS policies on the VIEW '${sourceToQuery}'. Ensure the querying role ('anon' or 'authenticated') has SELECT permissions.\n` +
             "2. RLS policies on all UNDERLYING TABLES used by the view (e.g., 'pets', 'health_records', 'feeding_records', 'vaccine_records'). The querying role needs SELECT access on these too.\n" +
@@ -182,7 +182,7 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
           console.error(`Error fetching dogs from Supabase view '${sourceToQuery}':`, dogsError);
         }
         setMasterDogList([]);
-        setLikedDogs([]);
+        setLikedDogs([]); // Also reset liked dogs if initial fetch fails
       } else if (dogsData && dogsData.length > 0) {
         const allDogsFromDb = dogsData.map(mapDbDogToDogType);
         setMasterDogList(allDogsFromDb);
@@ -205,7 +205,8 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
             setLikedDogs([]); 
         }
       } else {
-        console.warn(
+        // No error, but dogsData is null, undefined, or empty
+         console.warn(
             `Warning: Fetched no dogs from Supabase view '${sourceToQuery}' (data is null, undefined, or empty array) and no error was reported by Supabase. This might be due to:\n` +
             "1. Row Level Security (RLS) policies silently filtering all records from the view or its underlying tables.\n" +
             "2. The view or underlying tables being genuinely empty or having no records matching the view's criteria and RLS.\n\n" +
@@ -267,8 +268,21 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
           dog_id: dogId, 
         });
         if (error) throw error;
-      } catch (error) {
-        console.error("儲存按讚記錄至 Supabase 時發生錯誤:", error);
+      } catch (error: any) {
+        const isErrorAnEmptyObject = typeof error === 'object' && error !== null && Object.keys(error).length === 0;
+        if (isErrorAnEmptyObject) {
+          console.error(
+            "儲存按讚記錄至 Supabase 時發生錯誤: 收到了空的錯誤物件。這通常表示 Supabase 的 Row Level Security (RLS) 政策阻止了此操作，或者資料表權限不足。\n\n" +
+            "【請檢查您的 Supabase 設定】:\n" +
+            "1. RLS 政策: 確認 'user_dog_likes' 資料表有允許 'authenticated' 角色 INSERT 操作的 RLS 政策。例如：\n" +
+            "   CREATE POLICY \"Users can insert their own likes.\" ON public.user_dog_likes FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);\n" +
+            "2. 資料表權限: 在 Supabase Dashboard > Table Editor > 'user_dog_likes' > Table Privileges，確認 'authenticated' 角色有 INSERT 權限。\n" +
+            "3. Supabase Logs: 查看 Supabase 專案儀表板中的日誌 (Database > Logs 或 Query Performance) 以獲取更詳細的錯誤訊息。\n",
+            "原始錯誤物件:", error
+          );
+        } else {
+          console.error("儲存按讚記錄至 Supabase 時發生錯誤:", error);
+        }
         setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
       }
     }
@@ -429,3 +443,4 @@ export const usePawsConnect = () => {
   }
   return context;
 };
+
