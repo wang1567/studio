@@ -1,5 +1,5 @@
 export interface HealthRecord {
-  lastCheckup: string; // Date string
+  lastCheckup: string; // Date string (YYYY-MM-DD)
   conditions: string[];
   notes: string;
 }
@@ -13,21 +13,21 @@ export interface FeedingSchedule {
 
 export interface VaccinationRecord {
   vaccineName:string;
-  dateAdministered: string; // Date string
-  nextDueDate?: string; // Date string
+  dateAdministered: string; // Date string (YYYY-MM-DD)
+  nextDueDate?: string; // Date string (YYYY-MM-DD)
 }
 
 export interface Dog {
-  id: string;
+  id: string; // Firestore document ID
   name: string;
   breed: string;
   age: number; // in years
   gender: 'Male' | 'Female' | 'Unknown';
   photos: string[]; // URLs
   description: string;
-  healthRecords: HealthRecord;
-  feedingSchedule: FeedingSchedule;
-  vaccinationRecords: VaccinationRecord[];
+  healthRecords: HealthRecord; // Stored as a map/object in Firestore
+  feedingSchedule: FeedingSchedule; // Stored as a map/object in Firestore
+  vaccinationRecords: VaccinationRecord[]; // Stored as an array of maps/objects in Firestore
   liveStreamUrl?: string; // Optional
   status: 'Available' | 'Pending' | 'Adopted';
   location: string; // e.g., Shelter name or city
@@ -37,9 +37,9 @@ export interface Dog {
 export type UserRole = 'adopter' | 'caregiver';
 
 export interface Profile {
-  id: string; // Corresponds to Supabase auth user ID
+  id: string; // Corresponds to Firebase Auth user UID
   role: UserRole;
   fullName?: string | null;
   avatarUrl?: string | null;
-  updatedAt?: string | null;
+  updatedAt?: string | null; // ISO date string from Firestore Timestamp
 }

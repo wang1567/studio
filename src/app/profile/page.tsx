@@ -22,11 +22,13 @@ export default function ProfilePage() {
   }, [authUser, isLoadingAuth, router]);
 
   useEffect(() => {
-    if (authUser?.created_at) {
-      // 使用台灣時區及日期格式
-      setFormattedJoinDate(new Date(authUser.created_at).toLocaleDateString('zh-TW'));
+    if (authUser?.metadata.creationTime) {
+      // Firebase creationTime is a string, parse it
+      setFormattedJoinDate(new Date(authUser.metadata.creationTime).toLocaleDateString('zh-TW'));
+    } else if (profile?.updatedAt) { // Fallback to profile update time if creationTime not available
+      setFormattedJoinDate(new Date(profile.updatedAt).toLocaleDateString('zh-TW'));
     }
-  }, [authUser?.created_at]);
+  }, [authUser?.metadata.creationTime, profile?.updatedAt]);
 
   const handleLogout = async () => {
     await logout();
@@ -35,15 +37,12 @@ export default function ProfilePage() {
   
   const getInitials = (name?: string | null) => {
     if (!name) return '';
-    // For Chinese names, taking the last two characters might be more common for an initial-like representation,
-    // or just the first character if it's a single character name.
-    // This is a simple approach; more sophisticated handling might be needed for diverse name formats.
     if (name.length <= 2) return name;
     const nameParts = name.split(' ');
-    if (nameParts.length > 1) { // Likely Western name
+    if (nameParts.length > 1) {
         return nameParts.map(n => n[0]).join('').toUpperCase();
     }
-    return name.substring(name.length - 2); // Last two chars for CJK names typically
+    return name.substring(name.length - 2);
   }
 
   if (isLoadingAuth || (!authUser && !profile)) {
@@ -55,7 +54,7 @@ export default function ProfilePage() {
     );
   }
 
-  if (!authUser) {
+  if (!authUser || !profile) { // Ensure profile is also loaded
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
         <p className="text-lg text-muted-foreground">請登入以查看您的個人資料。</p>
