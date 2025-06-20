@@ -3,28 +3,14 @@
 
 import type { Dog, Profile, UserRole, HealthRecord, FeedingSchedule, VaccinationRecord } from '@/types';
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { 
-  getAuth, 
-  onAuthStateChanged, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
-  signOut,
-  type User as FirebaseUser 
-} from 'firebase/auth';
-import { 
-  getFirestore, 
-  doc, 
-  setDoc, 
-  getDoc, 
-  collection, 
-  query, 
-  where, 
-  getDocs,
-  Timestamp,
-  deleteDoc,
-  writeBatch
-} from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase'; // Firebase app instance
+import { supabase } from '@/lib/supabaseClient';
+import type { User as SupabaseUser, Session as SupabaseSession } from '@supabase/supabase-js';
+import { Database } from '@/types/supabase';
+
+type DbDog = Database['public']['Tables']['dogs']['Row'];
+type DbProfile = Database['public']['Tables']['profiles']['Row'];
+type DbUserDogLike = Database['public']['Tables']['user_dog_likes']['Row'];
+
 
 interface PawsConnectContextType {
   dogsToSwipe: Dog[];
@@ -37,54 +23,39 @@ interface PawsConnectContextType {
   setCurrentDogIndex: React.Dispatch<React.SetStateAction<number>>;
   isLoadingDogs: boolean;
 
-  user: FirebaseUser | null;
+  user: SupabaseUser | null;
   profile: Profile | null;
+  session: SupabaseSession | null;
   isLoadingAuth: boolean;
-  login: (email: string, password: string) => Promise<{ user: FirebaseUser | null; error: string | null }>;
-  signUp: (email: string, password: string, role: UserRole, fullName?: string | null) => Promise<{ user: FirebaseUser | null; error: string | null }>;
+  login: (email: string, password: string) => Promise<{ session: SupabaseSession | null; error: string | null }>;
+  signUp: (email: string, password: string, role: UserRole, fullName?: string | null) => Promise<{ user: SupabaseUser | null; error: string | null }>;
   logout: () => Promise<{ error: string | null }>;
 }
 
 const PawsConnectContext = createContext<PawsConnectContextType | undefined>(undefined);
 
-const mapFirestoreDocToDog = (docData: any, id: string): Dog => {
+const mapDbDogToDogType = (dbDog: DbDog): Dog => {
   const defaultHealthRecord: HealthRecord = { lastCheckup: '', conditions: ['無'], notes: '未提供記錄' };
   const defaultFeedingSchedule: FeedingSchedule = { foodType: '未指定', timesPerDay: 0, portionSize: '未指定', notes: '未提供記錄' };
   
-  const photos = Array.isArray(docData.photos) ? docData.photos.filter((p: any) => typeof p === 'string') : [];
-  const personalityTraits = Array.isArray(docData.personalityTraits) ? docData.personalityTraits.filter((p: any) => typeof p === 'string') : [];
+  const photos = Array.isArray(dbDog.photos) ? dbDog.photos.filter((p): p is string => typeof p === 'string') : [];
+  const personalityTraits = Array.isArray(dbDog.personality_traits) ? dbDog.personality_traits.filter((p): p is string => typeof p === 'string') : [];
   
-  const mapTimestampToDateString = (timestamp: any): string => {
-    if (timestamp instanceof Timestamp) {
-      return timestamp.toDate().toISOString().split('T')[0]; // YYYY-MM-DD
-    }
-    if (typeof timestamp === 'string') return timestamp;
-    return '';
-  };
-
-  const mapVaccinationRecords = (records: any[]): VaccinationRecord[] => {
-    if (!Array.isArray(records)) return [];
-    return records.map(record => ({
-      vaccineName: record.vaccineName || '未指定疫苗',
-      dateAdministered: mapTimestampToDateString(record.dateAdministered),
-      nextDueDate: record.nextDueDate ? mapTimestampToDateString(record.nextDueDate) : undefined,
-    }));
-  };
-  
-  const healthRecordsData = docData.healthRecords || {};
-  const feedingScheduleData = docData.feedingSchedule || {};
+  const healthRecordsData = dbDog.health_records as HealthRecord || defaultHealthRecord;
+  const feedingScheduleData = dbDog.feeding_schedule as FeedingSchedule || defaultFeedingSchedule;
+  const vaccinationRecordsData = (Array.isArray(dbDog.vaccination_records) ? dbDog.vaccination_records : []) as VaccinationRecord[];
 
   return {
-    id: id,
-    name: docData.name || '未命名狗狗',
-    breed: docData.breed || '未知品種',
-    age: typeof docData.age === 'number' ? docData.age : 0,
-    gender: docData.gender === 'Male' || docData.gender === 'Female' ? docData.gender : 'Unknown',
+    id: dbDog.id,
+    name: dbDog.name || '未命名狗狗',
+    breed: dbDog.breed || '未知品種',
+    age: typeof dbDog.age === 'number' ? dbDog.age : 0,
+    gender: dbDog.gender === 'Male' || dbDog.gender === 'Female' ? dbDog.gender : 'Unknown',
     photos: photos.length > 0 ? photos : ['https://placehold.co/600x400.png'],
-    description: docData.description || '暫無描述。',
+    description: dbDog.description || '暫無描述。',
     healthRecords: {
-      lastCheckup: mapTimestampToDateString(healthRecordsData.lastCheckup),
-      conditions: Array.isArray(healthRecordsData.conditions) && healthRecordsData.conditions.length > 0 ? healthRecordsData.conditions : ['無'],
+      lastCheckup: healthRecordsData.lastCheckup || '',
+      conditions: healthRecordsData.conditions && healthRecordsData.conditions.length > 0 ? healthRecordsData.conditions : ['無'],
       notes: healthRecordsData.notes || '未提供記錄',
     },
     feedingSchedule: {
@@ -93,10 +64,14 @@ const mapFirestoreDocToDog = (docData: any, id: string): Dog => {
       portionSize: feedingScheduleData.portionSize || '未指定',
       notes: feedingScheduleData.notes || '未提供記錄',
     },
-    vaccinationRecords: mapVaccinationRecords(docData.vaccinationRecords),
-    liveStreamUrl: docData.liveStreamUrl ?? undefined,
-    status: docData.status === 'Available' || docData.status === 'Pending' || docData.status === 'Adopted' ? docData.status : 'Available',
-    location: docData.location || '未知地點',
+    vaccinationRecords: vaccinationRecordsData.map(vr => ({
+      vaccineName: vr.vaccineName || '未指定疫苗',
+      dateAdministered: vr.dateAdministered || '',
+      nextDueDate: vr.nextDueDate || undefined,
+    })),
+    liveStreamUrl: dbDog.live_stream_url ?? undefined,
+    status: dbDog.status === 'Available' || dbDog.status === 'Pending' || dbDog.status === 'Adopted' ? dbDog.status : 'Available',
+    location: dbDog.location || '未知地點',
     personalityTraits: personalityTraits.length > 0 ? personalityTraits : ['個性溫和'],
   };
 };
@@ -110,57 +85,92 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
   const [currentDogIndex, setCurrentDogIndex] = useState(0);
   const [isLoadingDogs, setIsLoadingDogs] = useState(true);
 
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [session, setSession] = useState<SupabaseSession | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setIsLoadingAuth(true);
-      if (firebaseUser) {
-        setUser(firebaseUser);
-        // Fetch profile from Firestore
-        const profileDocRef = doc(db, 'profiles', firebaseUser.uid);
-        const profileDocSnap = await getDoc(profileDocRef);
-        if (profileDocSnap.exists()) {
-          const profileData = profileDocSnap.data();
+      setSession(session);
+      setUser(session?.user ?? null);
+
+      if (session?.user) {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single<DbProfile>();
+
+        if (profileError && profileError.code !== 'PGRST116') { // PGRST116 means no rows found, which is fine for new users
+          console.error('讀取個人資料時發生錯誤:', profileError);
+          setProfile(null);
+        } else if (profileData) {
           setProfile({
-            id: firebaseUser.uid,
-            role: profileData.role || 'adopter',
-            fullName: profileData.fullName || null,
-            avatarUrl: profileData.avatarUrl || null,
-            updatedAt: profileData.updatedAt instanceof Timestamp ? profileData.updatedAt.toDate().toISOString() : new Date().toISOString(),
+            id: profileData.id,
+            role: profileData.role as UserRole,
+            fullName: profileData.full_name,
+            avatarUrl: profileData.avatar_url,
+            updatedAt: profileData.updated_at,
           });
         } else {
-          // Profile doesn't exist, could be a new signup flow error or needs creation
-          setProfile(null); 
+          setProfile(null); // No profile found
         }
       } else {
-        setUser(null);
         setProfile(null);
-        // Clear user-specific dog data on logout
         setLikedDogs([]);
-        // SeenDogIds is local, can persist or clear based on preference. For now, clear.
-        setSeenDogIds(new Set()); 
+        setSeenDogIds(new Set());
         setCurrentDogIndex(0);
       }
       setIsLoadingAuth(false);
     });
-    return () => unsubscribe();
+
+    // Initial check for active session
+    async function getInitialSession() {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        setSession(initialSession);
+        setUser(initialSession?.user ?? null);
+        if (initialSession?.user) {
+            const { data: profileData } = await supabase.from('profiles').select('*').eq('id', initialSession.user.id).single<DbProfile>();
+            if (profileData) {
+                 setProfile({
+                    id: profileData.id,
+                    role: profileData.role as UserRole,
+                    fullName: profileData.full_name,
+                    avatarUrl: profileData.avatar_url,
+                    updatedAt: profileData.updated_at,
+                });
+            }
+        }
+        setIsLoadingAuth(false);
+    }
+    getInitialSession();
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
+
   const loadInitialDogData = useCallback(async () => {
-    if (!user && !isLoadingAuth) { // No user logged in, don't load liked dogs yet.
+    if (!user && !isLoadingAuth && !session) { 
       setIsLoadingDogs(true);
       try {
-        const dogsCollectionRef = collection(db, 'dogs');
-        // Potentially filter for 'Available' status if desired
-        // const q = query(dogsCollectionRef, where('status', '==', 'Available'));
-        const dogsSnapshot = await getDocs(dogsCollectionRef);
-        const allDogsFromDb = dogsSnapshot.docs.map(docSnap => mapFirestoreDocToDog(docSnap.data(), docSnap.id));
-        setMasterDogList(allDogsFromDb);
+        const { data: dogsData, error: dogsError } = await supabase
+          .from('dogs')
+          .select('*')
+          .eq('status', 'Available'); // Fetch only available dogs for non-logged in users
+
+        if (dogsError) {
+          console.error('Error fetching dogs from Supabase:', dogsError);
+          setMasterDogList([]);
+        } else if (dogsData) {
+          const allDogsFromDb = dogsData.map(mapDbDogToDogType);
+          setMasterDogList(allDogsFromDb);
+        }
       } catch (error) {
-        console.error('Error fetching dogs from Firestore:', error);
+        console.error('Error fetching dogs from Supabase:', error);
         setMasterDogList([]);
       } finally {
         setIsLoadingDogs(false);
@@ -168,39 +178,59 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    if (user) { // User is logged in, load their liked dogs
+    if (user || session) { // User is logged in or session exists
       setIsLoadingDogs(true);
       try {
-        // Fetch all dogs
-        const dogsCollectionRef = collection(db, 'dogs');
-        const dogsSnapshot = await getDocs(dogsCollectionRef);
-        const allDogsFromDb = dogsSnapshot.docs.map(docSnap => mapFirestoreDocToDog(docSnap.data(), docSnap.id));
+        const { data: dogsData, error: dogsError } = await supabase
+          .from('dogs')
+          .select('*')
+          .eq('status', 'Available'); // Fetch all available dogs
+
+        if (dogsError) {
+           console.error('Error fetching dogs from Supabase:', dogsError, 'Check RLS policies on `dogs` table.');
+           setMasterDogList([]);
+           setLikedDogs([]);
+           setIsLoadingDogs(false);
+           return;
+        }
+        
+        const allDogsFromDb = dogsData ? dogsData.map(mapDbDogToDogType) : [];
         setMasterDogList(allDogsFromDb);
 
-        // Fetch user's liked dogs
-        const likedDogsQuery = query(collection(db, 'user_dog_likes'), where('userId', '==', user.uid));
-        const likedDogsSnapshot = await getDocs(likedDogsQuery);
-        const likedDogIds = new Set(likedDogsSnapshot.docs.map(docSnap => docSnap.data().dogId));
-        
-        const userLikedDogs = allDogsFromDb.filter(dog => likedDogIds.has(dog.id));
-        setLikedDogs(userLikedDogs);
+        if (user) { // Fetch liked dogs only if user object is fully available
+            const { data: likedDogsData, error: likedDogsError } = await supabase
+            .from('user_dog_likes')
+            .select('dog_id')
+            .eq('user_id', user.id);
+
+            if (likedDogsError) {
+                console.error('Error fetching liked dogs:', likedDogsError);
+                setLikedDogs([]);
+            } else if (likedDogsData) {
+                const likedDogIdsSet = new Set(likedDogsData.map((like: {dog_id: string}) => like.dog_id));
+                const userLikedDogs = allDogsFromDb.filter(dog => likedDogIdsSet.has(dog.id));
+                setLikedDogs(userLikedDogs);
+            }
+        } else {
+            setLikedDogs([]); // No user, no liked dogs
+        }
 
       } catch (error) {
-        console.error('Error fetching dogs or liked dogs from Firestore:', error);
+        console.error('Error fetching dogs or liked dogs from Supabase:', error);
         setMasterDogList([]);
         setLikedDogs([]);
       } finally {
         setIsLoadingDogs(false);
       }
-    } else { // No user and auth is still loading, wait
-       setIsLoadingDogs(true); // Keep loading until auth state is clear
+    } else { 
+       setIsLoadingDogs(true); 
     }
-  }, [user, isLoadingAuth]);
+  }, [user, isLoadingAuth, session]);
 
 
   useEffect(() => {
     loadInitialDogData();
-  }, [loadInitialDogData]); // Re-run when user logs in/out
+  }, [loadInitialDogData]); 
 
 
   useEffect(() => {
@@ -208,14 +238,11 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
       setDogsToSwipe([]);
       return;
     }
-    // Filter master list for swiping: not liked and not in local 'seenDogIds'
-    // SeenDogIds is still local to the session for simplicity
     const dogsForSwiping = masterDogList.filter(dog =>
       !likedDogs.find(ld => ld.id === dog.id) &&
       !seenDogIds.has(dog.id) 
     );
     setDogsToSwipe(dogsForSwiping);
-    // Reset index if the list changes significantly, e.g., after logout/login
     if (currentDogIndex >= dogsForSwiping.length && dogsForSwiping.length > 0) {
         setCurrentDogIndex(0);
     } else if (dogsForSwiping.length === 0) {
@@ -227,9 +254,7 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
 
   const likeDog = async (dogId: string) => {
     if (!user) {
-      // Handle case where user is not logged in, e.g., show login prompt or store locally
-      console.log("User not logged in. Like not persisted to DB.");
-      // Add to local seen so it's removed from swipe
+      console.log("使用者未登入。按讚記錄未保存至資料庫。");
       setSeenDogIds(prevSeenIds => new Set(prevSeenIds).add(dogId));
       return;
     }
@@ -239,26 +264,21 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
 
     if (!likedDogs.find(d => d.id === dogId)) {
       setLikedDogs(prevLikedDogs => [...prevLikedDogs, dog]);
-      // Persist like to Firestore
       try {
-        const likeDocRef = doc(db, 'user_dog_likes', `${user.uid}_${dogId}`);
-        await setDoc(likeDocRef, {
-          userId: user.uid,
-          dogId: dogId,
-          likedAt: Timestamp.now(),
+        const { error } = await supabase.from('user_dog_likes').insert({
+          user_id: user.id,
+          dog_id: dogId,
         });
+        if (error) throw error;
       } catch (error) {
-        console.error("Error saving like to Firestore:", error);
-        // Optionally revert local state change if DB write fails
+        console.error("儲存按讚記錄至 Supabase 時發生錯誤:", error);
         setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
       }
     }
-    // Add to seenDogIds anyway to remove from current swipe session
     setSeenDogIds(prevSeenIds => new Set(prevSeenIds).add(dogId));
   };
 
   const passDog = (dogId: string) => {
-    // 'pass' is a local-only action for the current swipe session
     setSeenDogIds(prevSeenDogIds => new Set(prevSeenDogIds).add(dogId));
   };
   
@@ -266,66 +286,74 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
     return masterDogList.find(dog => dog.id === dogId);
   };
 
-  const login = async (email: string, password: string): Promise<{ user: FirebaseUser | null; error: string | null }> => {
+  const login = async (email: string, password: string): Promise<{ session: SupabaseSession | null; error: string | null }> => {
     setIsLoadingAuth(true);
-    try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      setIsLoadingAuth(false);
-      return { user: userCredential.user, error: null };
-    } catch (error: any) {
-      setIsLoadingAuth(false);
-      return { user: null, error: error.message || '登入失敗。請檢查您的帳號密碼。' };
-    }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    setIsLoadingAuth(false);
+    if (error) return { session: null, error: error.message || '登入失敗。請檢查您的帳號密碼。' };
+    return { session: data.session, error: null };
   };
 
-  const signUp = async (email: string, password: string, role: UserRole, fullName?: string | null): Promise<{ user: FirebaseUser | null; error: string | null }> => {
+  const signUp = async (email: string, password: string, role: UserRole, fullName?: string | null): Promise<{ user: SupabaseUser | null; error: string | null }> => {
     setIsLoadingAuth(true);
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const firebaseUser = userCredential.user;
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+    });
 
-      // Create profile document in Firestore
-      const profileData: Profile = {
-        id: firebaseUser.uid,
+    if (authError) {
+      setIsLoadingAuth(false);
+      return { user: null, error: authError.message || '註冊失敗。請稍後再試。' };
+    }
+    if (!authData.user) {
+      setIsLoadingAuth(false);
+      return { user: null, error: '註冊成功，但未取得使用者資訊。' };
+    }
+    
+    const { error: profileError } = await supabase.from('profiles').insert({
+      id: authData.user.id,
+      role,
+      full_name: fullName || email.split('@')[0],
+      avatar_url: `https://placehold.co/100x100.png?text=${(fullName || email)[0].toUpperCase()}`,
+      updated_at: new Date().toISOString(),
+    });
+
+    if (profileError) {
+      setIsLoadingAuth(false);
+      // Potentially delete the auth user if profile creation fails, or handle cleanup
+      console.error('建立個人資料時發生錯誤:', profileError);
+      return { user: authData.user, error: '註冊成功，但建立個人資料失敗: ' + profileError.message };
+    }
+    
+    // Manually update profile state as onAuthStateChange might not pick it up immediately for new signups
+    // This also ensures the profile is available right after signup.
+     setProfile({
+        id: authData.user.id,
         role,
         fullName: fullName || email.split('@')[0],
         avatarUrl: `https://placehold.co/100x100.png?text=${(fullName || email)[0].toUpperCase()}`,
-        updatedAt: Timestamp.now().toDate().toISOString(),
-      };
-      await setDoc(doc(db, 'profiles', firebaseUser.uid), {
-        role: profileData.role,
-        fullName: profileData.fullName,
-        avatarUrl: profileData.avatarUrl,
-        updatedAt: Timestamp.now() // Store as Firestore Timestamp
+        updatedAt: new Date().toISOString(),
       });
-      
-      setProfile(profileData); // Update local profile state immediately
-      setIsLoadingAuth(false);
-      return { user: firebaseUser, error: null };
-    } catch (error: any) {
-      setIsLoadingAuth(false);
-      return { user: null, error: error.message || '註冊失敗。請稍後再試。' };
-    }
+
+    setIsLoadingAuth(false);
+    return { user: authData.user, error: null };
   };
 
   const logout = async (): Promise<{ error: string | null }> => {
-    setIsLoadingAuth(true); // Set loading before async operation
-    try {
-      await signOut(auth);
-      // Auth state listener will clear user and profile
-      // Clear local dog states
-      setMasterDogList([]);
-      setLikedDogs([]);
-      setSeenDogIds(new Set());
-      setCurrentDogIndex(0);
-      setDogsToSwipe([]); // Ensure swipe interface resets
-      // setIsLoadingDogs(true); // Trigger re-fetch for non-logged-in state if desired or handled by auth change
-      setIsLoadingAuth(false);
-      return { error: null };
-    } catch (error: any) {
+    setIsLoadingAuth(true);
+    const { error } = await supabase.auth.signOut();
+    if (error) {
       setIsLoadingAuth(false);
       return { error: error.message || '登出時發生錯誤。' };
     }
+    // onAuthStateChange listener will handle clearing user, session, profile
+    setMasterDogList([]);
+    setLikedDogs([]);
+    setSeenDogIds(new Set());
+    setCurrentDogIndex(0);
+    setDogsToSwipe([]);
+    setIsLoadingAuth(false);
+    return { error: null };
   };
 
   return (
@@ -340,6 +368,7 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         setCurrentDogIndex,
         isLoadingDogs,
         user,
+        session,
         profile,
         isLoadingAuth,
         login,

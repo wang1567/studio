@@ -20,7 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 export const Navbar = () => {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, profile, logout, isLoadingAuth } = usePawsConnect();
+  const { user, session, profile, logout, isLoadingAuth } = usePawsConnect();
 
   const navItems = [
     { href: '/', label: '滑卡配對', icon: <Dog className="h-5 w-5" />, requiresAuth: false },
@@ -51,7 +51,7 @@ export const Navbar = () => {
         </Link>
         <div className="flex items-center gap-2 sm:gap-3">
           {navItems.map((item) => {
-            if (item.requiresAuth && !user && !isLoadingAuth) return null;
+            if (item.requiresAuth && !session && !isLoadingAuth) return null;
             return (
               <Link key={item.href} href={item.href}>
                 <Button
@@ -73,12 +73,12 @@ export const Navbar = () => {
             <div className="h-10 w-20 flex items-center justify-center">
                <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
             </div>
-          ) : user && profile ? (
+          ) : session && profile ? ( // Check for session and profile
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
                   <Avatar className="h-9 w-9">
-                    <AvatarImage src={profile?.avatarUrl || undefined} alt={profile?.fullName || user.email || '使用者'} data-ai-hint="person avatar" />
+                    <AvatarImage src={profile?.avatarUrl || undefined} alt={profile?.fullName || user?.email || '使用者'} data-ai-hint="person avatar" />
                     <AvatarFallback className="bg-primary/20 text-primary">
                        {getInitials(profile?.fullName) || <UserCircle2 size={20}/>}
                     </AvatarFallback>
@@ -87,7 +87,7 @@ export const Navbar = () => {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
-                  <div className="font-medium truncate">{profile?.fullName || user.email || '使用者'}</div>
+                  <div className="font-medium truncate">{profile?.fullName || user?.email || '使用者'}</div>
                   <div className="text-xs text-muted-foreground capitalize">{profile?.role === 'adopter' ? '領養者' : profile?.role === 'caregiver' ? '照顧者' : '無'}</div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />

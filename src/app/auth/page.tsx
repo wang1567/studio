@@ -12,7 +12,7 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (!isLoadingAuth && session) {
-      router.replace('/profile'); // 或基於角色的儀表板
+      router.replace('/profile'); 
     }
   }, [session, isLoadingAuth, router]);
 
@@ -25,7 +25,6 @@ export default function AuthPage() {
   }
 
   if (session) {
-    // 已由 useEffect 重定向，但作為後備：
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
         <p>您已登入。正在重定向...</p>
