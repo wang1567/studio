@@ -4,12 +4,12 @@
 import type { Dog, Profile, UserRole, HealthRecord, FeedingSchedule, VaccinationRecord } from '@/types';
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import type { User as SupabaseUser, Session as SupabaseSession } from '@supabase/supabase-js';
-import { Database } from '@/types/supabase';
+import type { User as SupabaseUser, Session as SupabaseSession, PostgrestError } from '@supabase/supabase-js';
+import type { Database } from '@/types/supabase';
 
 type DbDog = Database['public']['Tables']['dogs']['Row'];
 type DbProfile = Database['public']['Tables']['profiles']['Row'];
-type DbUserDogLike = Database['public']['Tables']['user_dog_likes']['Row'];
+// type DbUserDogLike = Database['public']['Tables']['user_dog_likes']['Row'];
 
 
 interface PawsConnectContextType {
@@ -103,7 +103,7 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
           .eq('id', session.user.id)
           .single<DbProfile>();
 
-        if (profileError && profileError.code !== 'PGRST116') { // PGRST116 means no rows found, which is fine for new users
+        if (profileError && profileError.code !== 'PGRST116') { 
           console.error('讀取個人資料時發生錯誤:', profileError);
           setProfile(null);
         } else if (profileData) {
@@ -115,7 +115,7 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
             updatedAt: profileData.updated_at,
           });
         } else {
-          setProfile(null); // No profile found
+          setProfile(null); 
         }
       } else {
         setProfile(null);
@@ -126,8 +126,9 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
       setIsLoadingAuth(false);
     });
 
-    // Initial check for active session
+    
     async function getInitialSession() {
+        setIsLoadingAuth(true);
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         setSession(initialSession);
         setUser(initialSession?.user ?? null);
@@ -160,17 +161,29 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         const { data: dogsData, error: dogsError } = await supabase
           .from('dogs')
           .select('*')
-          .eq('status', 'Available'); // Fetch only available dogs for non-logged in users
+          .eq('status', 'Available'); 
 
         if (dogsError) {
-          console.error('Error fetching dogs from Supabase:', dogsError);
+          if (dogsError && typeof dogsError === 'object' && Object.keys(dogsError).length === 0 && (dogsData === null || (Array.isArray(dogsData) && dogsData.length === 0))) {
+            console.error(
+              "Error fetching dogs from Supabase (anonymous user): Received an empty error object and no data. This often indicates that Row Level Security (RLS) policies on the 'dogs' table are preventing access for the 'anon' role, or there are no dogs matching the query (status='Available').\n\n" +
+              "【請檢查您的 Supabase 設定】:\n" +
+              "1. 'dogs' 表格的 RLS (資料列層級安全性) 原則：確認已有一條原則允許 'anon' (匿名) 角色 SELECT (讀取) 'status' 為 'Available' 的資料列。\n" +
+              "   RLS SELECT 原則範例 ('anon' 角色):\n" +
+              "   (status = 'Available'::text)\n" +
+              "2. 資料確認：確認您的 'dogs' 表格中確實有 'status' 為 'Available' 的狗狗資料。\n",
+              "原始錯誤物件:", dogsError
+            );
+          } else {
+            console.error('Error fetching dogs from Supabase (anonymous user):', dogsError);
+          }
           setMasterDogList([]);
         } else if (dogsData) {
           const allDogsFromDb = dogsData.map(mapDbDogToDogType);
           setMasterDogList(allDogsFromDb);
         }
       } catch (error) {
-        console.error('Error fetching dogs from Supabase:', error);
+        console.error('Error fetching dogs from Supabase (anonymous user, catch block):', error);
         setMasterDogList([]);
       } finally {
         setIsLoadingDogs(false);
@@ -178,45 +191,54 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
-    if (user || session) { // User is logged in or session exists
+    if (user || session) { 
       setIsLoadingDogs(true);
       try {
         const { data: dogsData, error: dogsError } = await supabase
           .from('dogs')
           .select('*')
-          .eq('status', 'Available'); // Fetch all available dogs
-
+          .eq('status', 'Available'); 
+        
         if (dogsError) {
-           console.error('Error fetching dogs from Supabase:', dogsError, 'Check RLS policies on `dogs` table.');
+           if (dogsError && typeof dogsError === 'object' && Object.keys(dogsError).length === 0 && (dogsData === null || (Array.isArray(dogsData) && dogsData.length === 0))) {
+             console.error(
+               "Error fetching dogs from Supabase (authenticated user): Received an empty error object and no data. This often indicates that Row Level Security (RLS) policies on the 'dogs' table are preventing access for the 'authenticated' role, or there are no dogs matching the query (status='Available').\n\n" +
+               "【請檢查您的 Supabase 設定】:\n" +
+               "1. 'dogs' 表格的 RLS (資料列層級安全性) 原則：確認已有一條原則允許 'authenticated' (已驗證) 角色 SELECT (讀取) 'status' 為 'Available' 的資料列。\n" +
+               "   RLS SELECT 原則範例 ('authenticated' 角色):\n" +
+               "   (status = 'Available'::text)\n" +
+               "2. 資料確認：確認您的 'dogs' 表格中確實有 'status' 為 'Available' 的狗狗資料。\n",
+               "原始錯誤物件:", dogsError
+             );
+           } else {
+             console.error('Error fetching dogs from Supabase for authenticated user. Check RLS policies on `dogs` table:', dogsError);
+           }
            setMasterDogList([]);
            setLikedDogs([]);
-           setIsLoadingDogs(false);
-           return;
-        }
-        
-        const allDogsFromDb = dogsData ? dogsData.map(mapDbDogToDogType) : [];
-        setMasterDogList(allDogsFromDb);
+        } else if (dogsData) {
+            const allDogsFromDb = dogsData ? dogsData.map(mapDbDogToDogType) : [];
+            setMasterDogList(allDogsFromDb);
 
-        if (user) { // Fetch liked dogs only if user object is fully available
-            const { data: likedDogsData, error: likedDogsError } = await supabase
-            .from('user_dog_likes')
-            .select('dog_id')
-            .eq('user_id', user.id);
+            if (user) { 
+                const { data: likedDogsData, error: likedDogsError } = await supabase
+                .from('user_dog_likes')
+                .select('dog_id')
+                .eq('user_id', user.id);
 
-            if (likedDogsError) {
-                console.error('Error fetching liked dogs:', likedDogsError);
-                setLikedDogs([]);
-            } else if (likedDogsData) {
-                const likedDogIdsSet = new Set(likedDogsData.map((like: {dog_id: string}) => like.dog_id));
-                const userLikedDogs = allDogsFromDb.filter(dog => likedDogIdsSet.has(dog.id));
-                setLikedDogs(userLikedDogs);
+                if (likedDogsError) {
+                    console.error('Error fetching liked dogs:', likedDogsError);
+                    setLikedDogs([]);
+                } else if (likedDogsData) {
+                    const likedDogIdsSet = new Set(likedDogsData.map((like: {dog_id: string}) => like.dog_id));
+                    const userLikedDogs = allDogsFromDb.filter(dog => likedDogIdsSet.has(dog.id));
+                    setLikedDogs(userLikedDogs);
+                }
+            } else {
+                setLikedDogs([]); 
             }
-        } else {
-            setLikedDogs([]); // No user, no liked dogs
         }
-
       } catch (error) {
-        console.error('Error fetching dogs or liked dogs from Supabase:', error);
+        console.error('Error fetching dogs or liked dogs from Supabase (authenticated user, catch block):', error);
         setMasterDogList([]);
         setLikedDogs([]);
       } finally {
@@ -254,8 +276,9 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
 
   const likeDog = async (dogId: string) => {
     if (!user) {
-      console.log("使用者未登入。按讚記錄未保存至資料庫。");
-      setSeenDogIds(prevSeenIds => new Set(prevSeenIds).add(dogId));
+      alert("請先登入才能按讚狗狗！");
+      // Optionally, redirect to login or show a login modal
+      // router.push('/auth'); 
       return;
     }
 
@@ -320,13 +343,10 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
 
     if (profileError) {
       setIsLoadingAuth(false);
-      // Potentially delete the auth user if profile creation fails, or handle cleanup
       console.error('建立個人資料時發生錯誤:', profileError);
       return { user: authData.user, error: '註冊成功，但建立個人資料失敗: ' + profileError.message };
     }
     
-    // Manually update profile state as onAuthStateChange might not pick it up immediately for new signups
-    // This also ensures the profile is available right after signup.
      setProfile({
         id: authData.user.id,
         role,
@@ -346,7 +366,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
       setIsLoadingAuth(false);
       return { error: error.message || '登出時發生錯誤。' };
     }
-    // onAuthStateChange listener will handle clearing user, session, profile
     setMasterDogList([]);
     setLikedDogs([]);
     setSeenDogIds(new Set());
@@ -387,3 +406,4 @@ export const usePawsConnect = () => {
   }
   return context;
 };
+
