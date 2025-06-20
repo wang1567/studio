@@ -7,13 +7,23 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl) {
   throw new Error(
-    "關鍵錯誤：環境變數 NEXT_PUBLIC_SUPABASE_URL 未設定。\n\n請依照以下步驟檢查：\n1. Firebase Studio 環境設定：請在您的 Firebase Studio 專案的環境變數設定中，確認 NEXT_PUBLIC_SUPABASE_URL 已正確設定。\n2. .env.local 檔案：如果在本地或特定支援的環境中使用，請確保專案根目錄下的 .env.local 檔案包含 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url。\n3. 重新啟動/重新部署：在 Firebase Studio 中設定或修改環境變數後，您必須依照 Firebase Studio 的指示重新啟動應用程式、重新部署或重建，以使變更生效。\n4. 檢查建置日誌：查看 Firebase Studio 的建置或部署日誌，確認環境變數是否已成功載入。\n\n如果問題持續，請查閱 Firebase Studio 的官方文件或尋求其支援管道以了解如何正確設定環境變數。"
+    "【 Firebase Studio 環境設定錯誤 】：必要的環境變數 'NEXT_PUBLIC_SUPABASE_URL' 未設定或應用程式未正確讀取。\n\n" +
+    "請在您的【Firebase Studio 專案設定】中執行以下操作：\n" +
+    "1. 檢查 Firebase Studio 環境變數：確認 'NEXT_PUBLIC_SUPABASE_URL' 已設定為您的 Supabase 專案 URL (例如：https://<project-id>.supabase.co)。\n" +
+    "2. 【關鍵步驟】重新啟動/重新部署：在 Firebase Studio 中儲存任何環境變數的變更後，您【必須】依照 Firebase Studio 的指示，完整「重新啟動」或「重新部署」您的應用程式。僅儲存變數是不夠的。\n" +
+    "3. 查閱 Firebase Studio 文件：若不確定如何設定或使環境變數生效，請參考 Firebase Studio 的官方文件。\n\n" +
+    "(對於本地 .env.local 使用者：若您在本地執行，請確保 .env.local 檔案正確無誤且已重新啟動開發伺服器。)"
   );
 }
 
 if (!supabaseAnonKey) {
   throw new Error(
-    "關鍵錯誤：環境變數 NEXT_PUBLIC_SUPABASE_ANON_KEY 未設定。\n\n請依照以下步驟檢查：\n1. Firebase Studio 環境設定：請在您的 Firebase Studio 專案的環境變數設定中，確認 NEXT_PUBLIC_SUPABASE_ANON_KEY 已正確設定。\n2. .env.local 檔案：如果在本地或特定支援的環境中使用，請確保專案根目錄下的 .env.local 檔案包含 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key。\n3. 重新啟動/重新部署：在 Firebase Studio 中設定或修改環境變數後，您必須依照 Firebase Studio 的指示重新啟動應用程式、重新部署或重建，以使變更生效。\n4. 檢查建置日誌：查看 Firebase Studio 的建置或部署日誌，確認環境變數是否已成功載入。\n\n如果問題持續，請查閱 Firebase Studio 的官方文件或尋求其支援管道以了解如何正確設定環境變數。"
+    "【 Firebase Studio 環境設定錯誤 】：必要的環境變數 'NEXT_PUBLIC_SUPABASE_ANON_KEY' 未設定或應用程式未正確讀取。\n\n" +
+    "請在您的【Firebase Studio 專案設定】中執行以下操作：\n" +
+    "1. 檢查 Firebase Studio 環境變數：確認 'NEXT_PUBLIC_SUPABASE_ANON_KEY' 已設定為您的 Supabase 專案的公開匿名金鑰 (public anon key)。\n" +
+    "2. 【關鍵步驟】重新啟動/重新部署：在 Firebase Studio 中儲存任何環境變數的變更後，您【必須】依照 Firebase Studio 的指示，完整「重新啟動」或「重新部署」您的應用程式。僅儲存變數是不夠的。\n" +
+    "3. 查閱 Firebase Studio 文件：若不確定如何設定或使環境變數生效，請參考 Firebase Studio 的官方文件。\n\n" +
+    "(對於本地 .env.local 使用者：若您在本地執行，請確保 .env.local 檔案正確無誤且已重新啟動開發伺服器。)"
   );
 }
 
