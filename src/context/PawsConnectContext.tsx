@@ -3,30 +3,32 @@
 
 import type { Dog, Profile, UserRole, HealthRecord, FeedingSchedule, VaccinationRecord } from '@/types';
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import type { AuthError, Session, User } from '@supabase/supabase-js';
-import type { Database } from '@/types/supabase';
+import { mockDogs } from '@/data/mockDogs'; // Import mock dogs
+
+// Minimal user structure for local auth
+interface LocalUser {
+  id: string;
+  email: string;
+  createdAt: string;
+}
 
 interface PawsConnectContextType {
-  // Dog related state
   dogsToSwipe: Dog[];
   likedDogs: Dog[];
   seenDogIds: Set<string>;
-  likeDog: (dogId: string) => Promise<void>;
+  likeDog: (dogId: string) => void;
   passDog: (dogId: string) => void;
   getDogById: (dogId: string) => Dog | undefined;
   currentDogIndex: number;
   setCurrentDogIndex: React.Dispatch<React.SetStateAction<number>>;
   isLoadingDogs: boolean;
 
-  // Auth related state
-  session: Session | null;
-  user: User | null;
+  user: LocalUser | null;
   profile: Profile | null;
   isLoadingAuth: boolean;
-  login: (email: string, password: string) => Promise<{ user: User | null; error: AuthError | null }>;
-  signUp: (email: string, password: string, role: UserRole, fullName?: string | null) => Promise<{ user: User | null; error: AuthError | null }>;
-  logout: () => Promise<{ error: AuthError | null }>;
+  login: (email: string, password: string) => Promise<{ user: LocalUser | null; error: string | null }>;
+  signUp: (email: string, password: string, role: UserRole, fullName?: string | null) => Promise<{ user: LocalUser | null; error: string | null }>;
+  logout: () => Promise<{ error: string | null }>;
 }
 
 const PawsConnectContext = createContext<PawsConnectContextType | undefined>(undefined);
@@ -44,79 +46,27 @@ const defaultFeedingSchedule: FeedingSchedule = {
   notes: '未提供記錄',
 };
 
-// Helper to map Supabase dog row to our Dog type
-const mapDbDogToDogType = (dbDog: Database['public']['Tables']['dogs']['Row']): Dog => {
-  const photos = Array.isArray(dbDog.photos) ? dbDog.photos.filter(p => typeof p === 'string') : [];
-  const personalityTraits = Array.isArray(dbDog.personality_traits) ? dbDog.personality_traits.filter(p => typeof p === 'string') : [];
-
-  let healthRecords: HealthRecord;
-  try {
-    const parsedHr = dbDog.health_records as unknown;
-    if (typeof parsedHr === 'object' && parsedHr !== null) {
-      healthRecords = {
-        lastCheckup: (parsedHr as HealthRecord).lastCheckup || '',
-        conditions: Array.isArray((parsedHr as HealthRecord).conditions) ? (parsedHr as HealthRecord).conditions.filter(c => typeof c === 'string') : ['無'],
-        notes: (parsedHr as HealthRecord).notes || '未提供記錄',
-      };
-    } else {
-      healthRecords = { ...defaultHealthRecord };
-    }
-  } catch (e) {
-    console.error('Error parsing health_records:', e, dbDog.health_records);
-    healthRecords = { ...defaultHealthRecord };
-  }
-
-  let feedingSchedule: FeedingSchedule;
-  try {
-    const parsedFs = dbDog.feeding_schedule as unknown;
-     if (typeof parsedFs === 'object' && parsedFs !== null) {
-        feedingSchedule = {
-            foodType: (parsedFs as FeedingSchedule).foodType || '未指定',
-            timesPerDay: typeof (parsedFs as FeedingSchedule).timesPerDay === 'number' ? (parsedFs as FeedingSchedule).timesPerDay : 0,
-            portionSize: (parsedFs as FeedingSchedule).portionSize || '未指定',
-            notes: (parsedFs as FeedingSchedule).notes || '未提供記錄',
-        };
-    } else {
-      feedingSchedule = { ...defaultFeedingSchedule };
-    }
-  } catch (e) {
-    console.error('Error parsing feeding_schedule:', e, dbDog.feeding_schedule);
-    feedingSchedule = { ...defaultFeedingSchedule };
-  }
-
-  let vaccinationRecords: VaccinationRecord[];
-  try {
-    const parsedVr = dbDog.vaccination_records as unknown;
-    if (Array.isArray(parsedVr)) {
-      vaccinationRecords = parsedVr.map(vr => ({
-        vaccineName: (vr as VaccinationRecord).vaccineName || '未指定疫苗',
-        dateAdministered: (vr as VaccinationRecord).dateAdministered || '',
-        nextDueDate: (vr as VaccinationRecord).nextDueDate || undefined,
-      })).filter(vr => vr.vaccineName && vr.dateAdministered);
-    } else {
-      vaccinationRecords = [];
-    }
-  } catch (e) {
-    console.error('Error parsing vaccination_records:', e, dbDog.vaccination_records);
-    vaccinationRecords = [];
-  }
+// Helper to ensure dog data has all necessary fields, even if from mock
+const ensureDogDataIntegrity = (dog: any): Dog => {
+  const photos = Array.isArray(dog.photos) ? dog.photos.filter(p => typeof p === 'string') : [];
+  const personalityTraits = Array.isArray(dog.personalityTraits) ? dog.personalityTraits.filter(p => typeof p === 'string') : [];
   
-  const dogGender = dbDog.gender === 'Male' || dbDog.gender === 'Female' ? dbDog.gender : 'Unknown';
+  const dogGender = dog.gender === 'Male' || dog.gender === 'Female' ? dog.gender : 'Unknown';
 
   return {
-    id: dbDog.id,
-    name: dbDog.name || '未命名狗狗',
-    breed: dbDog.breed || '未知品種',
-    age: typeof dbDog.age === 'number' ? dbDog.age : 0,
+    id: dog.id || Math.random().toString(36).substring(7),
+    name: dog.name || '未命名狗狗',
+    breed: dog.breed || '未知品種',
+    age: typeof dog.age === 'number' ? dog.age : 0,
     gender: dogGender,
     photos: photos.length > 0 ? photos : ['https://placehold.co/600x400.png'],
-    description: dbDog.description || '暫無描述。',
-    healthRecords: healthRecords || {...defaultHealthRecord},
-    feedingSchedule: feedingSchedule || {...defaultFeedingSchedule},
-    vaccinationRecords: vaccinationRecords || [],
-    liveStreamUrl: dbDog.live_stream_url ?? undefined,
-    status: dbDog.status || 'Available',
-    location: dbDog.location || '未知地點',
+    description: dog.description || '暫無描述。',
+    healthRecords: dog.healthRecords || { ...defaultHealthRecord },
+    feedingSchedule: dog.feedingSchedule || { ...defaultFeedingSchedule },
+    vaccinationRecords: Array.isArray(dog.vaccinationRecords) ? dog.vaccinationRecords : [],
+    liveStreamUrl: dog.liveStreamUrl ?? undefined,
+    status: dog.status || 'Available',
+    location: dog.location || '未知地點',
     personalityTraits: personalityTraits.length > 0 ? personalityTraits : ['個性溫和'],
   };
 };
@@ -130,114 +80,70 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
   const [currentDogIndex, setCurrentDogIndex] = useState(0);
   const [isLoadingDogs, setIsLoadingDogs] = useState(true);
 
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<LocalUser | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
-  const fetchAndSetProfile = useCallback(async (currentUser: User | null) => {
-    if (currentUser) {
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', currentUser.id)
-        .single();
-
-      if (profileError && profileError.code !== 'PGRST116') { 
-        console.error('Error fetching profile:', profileError);
-        setProfile(null);
-      } else {
-        setProfile(profileData as Profile | null);
-      }
-    } else {
-      setProfile(null);
-    }
-  }, []);
-  
+  // Load initial state from localStorage
   useEffect(() => {
     setIsLoadingAuth(true);
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      await fetchAndSetProfile(session?.user ?? null);
-      setIsLoadingAuth(false);
-    });
+    // Mock Auth
+    const storedUser = localStorage.getItem('pawsConnectUser');
+    const storedProfile = localStorage.getItem('pawsConnectProfile');
+    if (storedUser && storedProfile) {
+      setUser(JSON.parse(storedUser));
+      setProfile(JSON.parse(storedProfile));
+    }
+    setIsLoadingAuth(false);
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setIsLoadingAuth(true);
-      setSession(session);
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      await fetchAndSetProfile(currentUser);
-      setIsLoadingAuth(false);
-    });
+    // Dog data
+    setIsLoadingDogs(true);
+    const allDogs = mockDogs.map(ensureDogDataIntegrity);
+    setMasterDogList(allDogs);
 
-    return () => {
-      authListener?.subscription.unsubscribe();
-    };
-  }, [fetchAndSetProfile]);
+    const storedLikedDogIds = JSON.parse(localStorage.getItem('pawsConnectLikedDogIds') || '[]');
+    const storedSeenDogIds = JSON.parse(localStorage.getItem('pawsConnectSeenDogIds') || '[]');
+    
+    const initialLikedDogs = allDogs.filter(dog => storedLikedDogIds.includes(dog.id));
+    setLikedDogs(initialLikedDogs);
+    setSeenDogIds(new Set(storedSeenDogIds));
+    
+    setCurrentDogIndex(0);
+    setIsLoadingDogs(false);
+  }, []);
 
+  // Persist auth state to localStorage
   useEffect(() => {
-    const loadInitialDogData = async () => {
-      setIsLoadingDogs(true);
+    if (user && profile) {
+      localStorage.setItem('pawsConnectUser', JSON.stringify(user));
+      localStorage.setItem('pawsConnectProfile', JSON.stringify(profile));
+    } else {
+      localStorage.removeItem('pawsConnectUser');
+      localStorage.removeItem('pawsConnectProfile');
+    }
+  }, [user, profile]);
 
-      const { data: dbDogs, error: dogsError } = await supabase
-        .from('dogs')
-        .select('*')
-        .eq('status', 'Available');
+  // Persist dog interaction state to localStorage
+  useEffect(() => {
+    localStorage.setItem('pawsConnectLikedDogIds', JSON.stringify(likedDogs.map(d => d.id)));
+    localStorage.setItem('pawsConnectSeenDogIds', JSON.stringify(Array.from(seenDogIds)));
+  }, [likedDogs, seenDogIds]);
 
-      if (dogsError) {
-        console.error('Error fetching dogs from Supabase:', dogsError);
-        console.error('This might be due to missing or incorrect Row Level Security (RLS) policies on the "dogs" table. Please ensure SELECT access is allowed for the data to be fetched.');
-        setMasterDogList([]);
-        setLikedDogs([]);
-        setIsLoadingDogs(false);
-        return;
-      }
-
-      const formattedMasterDogs: Dog[] = dbDogs ? dbDogs.map(mapDbDogToDogType) : [];
-      setMasterDogList(formattedMasterDogs);
-
-      if (user && formattedMasterDogs.length > 0) {
-        const { data: likedRecords, error: likedError } = await supabase
-          .from('user_dog_likes')
-          .select('dog_id')
-          .eq('user_id', user.id);
-
-        if (likedError) {
-          console.error('Error fetching liked dog records:', likedError);
-          setLikedDogs([]);
-        } else {
-          const userLikedDogIds = likedRecords.map(r => r.dog_id);
-          const currentUserLikedDogs = formattedMasterDogs.filter(dog => userLikedDogIds.includes(dog.id));
-          setLikedDogs(currentUserLikedDogs);
-        }
-      } else {
-        setLikedDogs([]);
-      }
-      setCurrentDogIndex(0);
-      setIsLoadingDogs(false);
-    };
-
-    loadInitialDogData();
-  }, [user]); 
 
   useEffect(() => {
     if (isLoadingDogs) {
       setDogsToSwipe([]);
       return;
     }
-
-    const currentLikedDogIds = likedDogs.map(d => d.id);
     const dogsForSwiping = masterDogList.filter(dog =>
-      !currentLikedDogIds.includes(dog.id) &&
+      !likedDogs.find(ld => ld.id === dog.id) &&
       !seenDogIds.has(dog.id)
     );
     setDogsToSwipe(dogsForSwiping);
   }, [masterDogList, likedDogs, seenDogIds, isLoadingDogs]);
 
 
-  const likeDog = async (dogId: string) => {
+  const likeDog = (dogId: string) => {
     const dog = masterDogList.find(d => d.id === dogId);
     if (!dog) return;
 
@@ -245,16 +151,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
       setLikedDogs(prevLikedDogs => [...prevLikedDogs, dog]);
     }
     setSeenDogIds(prevSeenIds => new Set(prevSeenIds).add(dogId));
-
-    if (user) {
-      const { error } = await supabase
-        .from('user_dog_likes')
-        .insert({ user_id: user.id, dog_id: dogId });
-      if (error) {
-        console.error('Error saving like to Supabase:', error.message);
-        setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
-      }
-    }
   };
 
   const passDog = (dogId: string) => {
@@ -265,65 +161,68 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
     return masterDogList.find(dog => dog.id === dogId);
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<{ user: LocalUser | null; error: string | null }> => {
     setIsLoadingAuth(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (data.user) {
-        await fetchAndSetProfile(data.user);
-    }
-    setIsLoadingAuth(false);
-    return { user: data.user, error };
-  };
-
-  const signUp = async (email: string, password: string, role: UserRole, fullName?: string | null) => {
-    setIsLoadingAuth(true);
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    if (authError) {
-      setIsLoadingAuth(false);
-      return { user: null, error: authError };
-    }
-
-    if (authData.user) {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({ 
-            id: authData.user.id, 
-            role, 
-            full_name: fullName || null,
-            updated_at: new Date().toISOString(),
-            avatar_url: null,
-        });
-      
-      if (profileError) {
-        console.error("Error creating profile:", profileError);
-      } else {
-         await fetchAndSetProfile(authData.user);
+    // Simulate login
+    if (email && password) { // Basic check, replace with actual mock validation if needed
+      const mockUser: LocalUser = { id: 'mock-' + email, email, createdAt: new Date().toISOString() };
+      // Try to load profile from signup or use a default
+      let mockProfile = JSON.parse(localStorage.getItem(`pawsConnectProfile_${email}`) || 'null') as Profile | null;
+      if (!mockProfile) {
+        mockProfile = { 
+          id: mockUser.id, 
+          role: 'adopter', 
+          fullName: email.split('@')[0],
+          updatedAt: new Date().toISOString(),
+        };
       }
+      
+      setUser(mockUser);
+      setProfile(mockProfile);
+      setIsLoadingAuth(false);
+      return { user: mockUser, error: null };
     }
     setIsLoadingAuth(false);
-    return { user: authData.user, error: authError };
+    return { user: null, error: '無效的電子郵件或密碼' };
   };
 
-  const logout = async () => {
+  const signUp = async (email: string, password: string, role: UserRole, fullName?: string | null): Promise<{ user: LocalUser | null; error: string | null }> => {
     setIsLoadingAuth(true);
-    const { error } = await supabase.auth.signOut();
-    setSession(null);
+    // Simulate signup
+    if (email && password && role) {
+      const mockUser: LocalUser = { id: 'mock-' + email, email, createdAt: new Date().toISOString() };
+      const mockProfile: Profile = {
+        id: mockUser.id,
+        role,
+        fullName: fullName || email.split('@')[0],
+        updatedAt: new Date().toISOString(),
+        avatarUrl: `https://placehold.co/100x100.png?text=${(fullName || email)[0].toUpperCase()}`
+      };
+      // Store this profile separately to be picked up by login
+      localStorage.setItem(`pawsConnectProfile_${email}`, JSON.stringify(mockProfile));
+
+      // For immediate use after signup, set it directly too
+      setUser(mockUser);
+      setProfile(mockProfile);
+      
+      setIsLoadingAuth(false);
+      return { user: mockUser, error: null };
+    }
+    setIsLoadingAuth(false);
+    return { user: null, error: '註冊失敗，請檢查輸入資料' };
+  };
+
+  const logout = async (): Promise<{ error: string | null }> => {
+    setIsLoadingAuth(true);
     setUser(null);
     setProfile(null);
-    
-    // Reset dog-related states upon logout
-    setMasterDogList([]); // Clear master list
-    setLikedDogs([]);    // Clear liked dogs
-    setSeenDogIds(new Set()); // Clear seen dogs
-    setDogsToSwipe([]);  // Clear swipeable dogs
-    setCurrentDogIndex(0); // Reset index
-    
+    // Clear only user-specific dog data if desired, or all for full reset
+    setLikedDogs([]); 
+    setSeenDogIds(new Set()); 
+    // dogsToSwipe will re-filter based on cleared liked/seen
+    setCurrentDogIndex(0);
     setIsLoadingAuth(false);
-    return { error };
+    return { error: null };
   };
 
   return (
@@ -337,7 +236,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         currentDogIndex,
         setCurrentDogIndex,
         isLoadingDogs,
-        session,
         user,
         profile,
         isLoadingAuth,
@@ -353,8 +251,7 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
 export const usePawsConnect = () => {
   const context = useContext(PawsConnectContext);
   if (context === undefined) {
-    throw new Error('usePawsConnect must be used within a PawsConnectProvider');
+    throw new Error('usePawsConnect 必須在 PawsConnectProvider 內使用');
   }
   return context;
 };
-
