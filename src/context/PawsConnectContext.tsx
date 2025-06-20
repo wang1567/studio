@@ -164,10 +164,11 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
       const { data: dogsData, error: dogsError } = await supabase
         .from(sourceToQuery)
         .select('*');
-        // .eq('status', 'Available'); // The view can pre-filter by status if desired
 
       if (dogsError) {
-        if (dogsError && typeof dogsError === 'object' && Object.keys(dogsError).length === 0 && (dogsData === null || (Array.isArray(dogsData) && dogsData.length === 0))) {
+        // Check if dogsError is an empty object and dogsData is also effectively empty (null, undefined, or empty array)
+        // This is a strong indicator of RLS issues or silent failures where no data is returned.
+        if (dogsError && typeof dogsError === 'object' && Object.keys(dogsError).length === 0 && (dogsData === null || dogsData === undefined || (Array.isArray(dogsData) && dogsData.length === 0))) {
           console.error(
             `Error fetching dogs from Supabase view '${sourceToQuery}': Received an empty error object and no data. This often indicates that Row Level Security (RLS) policies on the view OR its underlying tables (pets, health_records, etc.) are preventing access for the current role (anon or authenticated), or there are no dogs matching the query.\n\n` +
             "【請檢查您的 Supabase 設定】:\n" +
@@ -374,3 +375,4 @@ export const usePawsConnect = () => {
   }
   return context;
 };
+
