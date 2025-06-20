@@ -2,11 +2,12 @@
 "use client";
 
 import Link from 'next/link';
-import { Dog, Users, Heart, UserCircle, LogIn, LogOut, UserCircle2 } from 'lucide-react';
+import { Dog, Heart, UserCircle, LogIn, LogOut, UserCircle2, Sun, Moon } from 'lucide-react'; // Added Sun, Moon
 import { Button } from '@/components/ui/button';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { usePawsConnect } from '@/context/PawsConnectContext';
+import { useTheme } from '@/context/ThemeContext'; // Import useTheme
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +22,7 @@ export const Navbar = () => {
   const pathname = usePathname();
   const router = useRouter();
   const { user, session, profile, logout, isLoadingAuth } = usePawsConnect();
+  const { theme, toggleTheme } = useTheme(); // Use the theme context
 
   const navItems = [
     { href: '/', label: '滑卡配對', icon: <Dog className="h-5 w-5" />, requiresAuth: false },
@@ -49,7 +51,7 @@ export const Navbar = () => {
           <Dog className="h-8 w-8" />
           <h1 className="text-2xl font-headline font-bold">PawsConnect</h1>
         </Link>
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1 sm:gap-2"> {/* Reduced gap slightly */}
           {navItems.map((item) => {
             if (item.requiresAuth && !session && !isLoadingAuth) return null;
             return (
@@ -69,11 +71,21 @@ export const Navbar = () => {
             );
           })}
 
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="h-9 w-9 sm:h-10 sm:w-10 text-foreground/70 hover:text-primary focus-visible:ring-primary"
+            aria-label={theme === 'dark' ? "切換至淺色模式" : "切換至深色模式"}
+          >
+            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </Button>
+
           {isLoadingAuth ? (
             <div className="h-10 w-20 flex items-center justify-center">
                <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
             </div>
-          ) : session && profile ? ( // Check for session and profile
+          ) : session && profile ? ( 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
