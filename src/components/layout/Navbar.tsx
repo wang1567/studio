@@ -23,19 +23,23 @@ export const Navbar = () => {
   const { user, profile, logout, isLoadingAuth } = usePawsConnect();
 
   const navItems = [
-    { href: '/', label: 'Swipe', icon: <Dog className="h-5 w-5" />, requiresAuth: false },
-    { href: '/matches', label: 'Matches', icon: <Heart className="h-5 w-5" />, requiresAuth: true },
-    // Profile link is handled by DropdownMenu if logged in
+    { href: '/', label: '滑卡配對', icon: <Dog className="h-5 w-5" />, requiresAuth: false },
+    { href: '/matches', label: '我的配對', icon: <Heart className="h-5 w-5" />, requiresAuth: true },
   ];
 
   const handleLogout = async () => {
     await logout();
-    router.push('/'); // Redirect to home after logout
+    router.push('/');
   };
   
   const getInitials = (name?: string | null) => {
     if (!name) return '';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
+    if (name.length <= 2) return name;
+    const nameParts = name.split(' ');
+    if (nameParts.length > 1) {
+        return nameParts.map(n => n[0]).join('').toUpperCase();
+    }
+    return name.substring(name.length - 2);
   }
 
   return (
@@ -48,9 +52,6 @@ export const Navbar = () => {
         <div className="flex items-center gap-2 sm:gap-3">
           {navItems.map((item) => {
             if (item.requiresAuth && !user && !isLoadingAuth) return null;
-            // Profile link is handled by dropdown, so no need for this check:
-            // if (item.href === '/profile' && user) return null; 
-
             return (
               <Link key={item.href} href={item.href}>
                 <Button
@@ -77,7 +78,7 @@ export const Navbar = () => {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
                   <Avatar className="h-9 w-9">
-                    <AvatarImage src={profile?.avatarUrl || undefined} alt={profile?.fullName || user.email || 'User'} data-ai-hint="person avatar" />
+                    <AvatarImage src={profile?.avatarUrl || undefined} alt={profile?.fullName || user.email || '使用者'} data-ai-hint="person avatar" />
                     <AvatarFallback className="bg-primary/20 text-primary">
                        {getInitials(profile?.fullName) || <UserCircle2 size={20}/>}
                     </AvatarFallback>
@@ -86,20 +87,20 @@ export const Navbar = () => {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>
-                  <div className="font-medium truncate">{profile?.fullName || user.email || 'User'}</div>
-                  <div className="text-xs text-muted-foreground capitalize">{profile?.role || 'N/A'}</div>
+                  <div className="font-medium truncate">{profile?.fullName || user.email || '使用者'}</div>
+                  <div className="text-xs text-muted-foreground capitalize">{profile?.role === 'adopter' ? '領養者' : profile?.role === 'caregiver' ? '照顧者' : '無'}</div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link href="/profile">
                     <UserCircle className="mr-2 h-4 w-4" />
-                    Profile
+                    個人資料
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
                   <LogOut className="mr-2 h-4 w-4" />
-                  Logout
+                  登出
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -110,7 +111,7 @@ export const Navbar = () => {
                  pathname === "/auth" ? "text-primary font-semibold" : "text-foreground/70 hover:text-primary"
               )}>
                 <LogIn className="h-5 w-5" />
-                <span className="text-xs sm:text-sm">Login</span>
+                <span className="text-xs sm:text-sm">登入</span>
               </Button>
             </Link>
           )}

@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Dog } from '@/types';
@@ -17,6 +18,15 @@ interface DogDetailsModalProps {
   onClose: () => void;
 }
 
+const translateGender = (gender: 'Male' | 'Female' | 'Unknown'): string => {
+  switch (gender) {
+    case 'Male': return '公';
+    case 'Female': return '母';
+    case 'Unknown': return '未知';
+    default: return gender;
+  }
+};
+
 export const DogDetailsModal = ({ dog, isOpen, onClose }: DogDetailsModalProps) => {
   if (!dog) return null;
 
@@ -27,10 +37,10 @@ export const DogDetailsModal = ({ dog, isOpen, onClose }: DogDetailsModalProps) 
           <div className="flex justify-between items-start">
             <div>
               <DialogTitle className="text-3xl font-headline text-primary">{dog.name}</DialogTitle>
-              <DialogDescription className="text-lg">{dog.breed} - {dog.age} years old - {dog.gender}</DialogDescription>
+              <DialogDescription className="text-lg">{dog.breed} - {dog.age} 歲 - {translateGender(dog.gender)}</DialogDescription>
             </div>
             <DialogClose asChild>
-              <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close dialog">
+              <Button variant="ghost" size="icon" onClick={onClose} aria-label="關閉對話框">
                 <X className="h-6 w-6" />
               </Button>
             </DialogClose>
@@ -48,7 +58,7 @@ export const DogDetailsModal = ({ dog, isOpen, onClose }: DogDetailsModalProps) 
                       <div className="aspect-w-4 aspect-h-3">
                         <Image 
                           src={photo} 
-                          alt={`${dog.name} photo ${index + 1}`} 
+                          alt={`${dog.name} 照片 ${index + 1}`} 
                           width={600}
                           height={400}
                           className="object-cover w-full h-full"
@@ -88,9 +98,9 @@ export const DogDetailsModal = ({ dog, isOpen, onClose }: DogDetailsModalProps) 
           </div>
         </ScrollArea>
         <div className="p-6 border-t bg-secondary/30 rounded-b-lg flex justify-end gap-3">
-            <Button variant="outline" onClick={onClose}>Close</Button>
+            <Button variant="outline" onClick={onClose}>關閉</Button>
             <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
-              <Heart className="mr-2 h-4 w-4" /> Express Interest
+              <Heart className="mr-2 h-4 w-4" /> 表達領養意願
             </Button>
         </div>
       </DialogContent>

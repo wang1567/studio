@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Dog } from '@/types';
@@ -27,25 +28,25 @@ export const DogCard = ({ dog, onLike, onPass, onDetails, isTopCard, animationCl
         animationClass, 
         isTopCard ? "opacity-100 transform scale-100" : "opacity-0 transform scale-90 absolute -z-10"
       )}
-      style={{ aspectRatio: '3/4.5' }} // Maintain a consistent card aspect ratio
-      aria-label={`Profile card for ${dog.name}`}
+      style={{ aspectRatio: '3/4.5' }}
+      aria-label={`關於 ${dog.name} 的資料卡`}
     >
       <CardHeader className="p-0 relative">
-        <div className="aspect-w-1 aspect-h-1 w-full"> {/* Square aspect ratio for image container */}
+        <div className="aspect-w-1 aspect-h-1 w-full">
           <Image
             src={dog.photos[0]}
             alt={dog.name}
             width={400}
             height={400}
             className="object-cover w-full h-full"
-            priority={isTopCard} // Prioritize loading image for the top card
+            priority={isTopCard}
             data-ai-hint="dog portrait"
           />
         </div>
         <div className="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-black/70 to-transparent">
           <CardTitle className="text-3xl font-headline text-primary-foreground drop-shadow-md">{dog.name}</CardTitle>
           <CardDescription className="text-primary-foreground/90 text-sm drop-shadow-sm">
-            {dog.breed} - {dog.age} years old
+            {dog.breed} - {dog.age} 歲
           </CardDescription>
         </div>
         <Button 
@@ -53,7 +54,7 @@ export const DogCard = ({ dog, onLike, onPass, onDetails, isTopCard, animationCl
           size="icon" 
           className="absolute top-3 right-3 bg-black/30 hover:bg-black/50 text-white rounded-full"
           onClick={() => onDetails(dog)}
-          aria-label={`More details about ${dog.name}`}
+          aria-label={`更多關於 ${dog.name} 的資訊`}
         >
           <Info className="h-5 w-5" />
         </Button>
@@ -78,7 +79,7 @@ export const DogCard = ({ dog, onLike, onPass, onDetails, isTopCard, animationCl
             variant="outline" 
             className="w-full h-14 border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive" 
             onClick={() => onPass(dog.id)}
-            aria-label="Pass on this dog"
+            aria-label="略過這隻狗狗"
           >
             <XCircle className="h-8 w-8" />
           </Button>
@@ -86,7 +87,7 @@ export const DogCard = ({ dog, onLike, onPass, onDetails, isTopCard, animationCl
             variant="outline" 
             className="w-full h-14 border-green-500 text-green-500 hover:bg-green-500/10 hover:text-green-600 focus-visible:ring-green-500" 
             onClick={() => onLike(dog.id)}
-            aria-label="Like this dog"
+            aria-label="喜歡這隻狗狗"
           >
             <Heart className="h-8 w-8" />
           </Button>

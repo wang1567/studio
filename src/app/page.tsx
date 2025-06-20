@@ -1,13 +1,14 @@
+
 import { SwipeInterface } from '@/components/dog/SwipeInterface';
 
 export default function HomePage() {
   return (
     <div className="flex flex-col items-center w-full">
       <h1 className="text-3xl md:text-4xl font-headline font-bold text-primary mb-2 text-center">
-        Find Your Next Best Friend
+        尋找您的下一個摯友
       </h1>
       <p className="text-muted-foreground mb-8 text-center max-w-md">
-        Swipe right to like a dog, or left to pass. Tap a dog's picture for more details. Your furry companion awaits!
+        向右滑動表示喜歡，向左滑動表示略過。點擊狗狗的照片查看更多詳細資料。您的毛茸茸夥伴正等著您！
       </p>
       <SwipeInterface />
     </div>

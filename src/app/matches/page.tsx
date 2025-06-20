@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -31,16 +32,16 @@ export default function MatchesPage() {
     return (
       <div className="text-center py-10">
         <Heart className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-        <h2 className="text-2xl font-headline mb-2">No Matches Yet</h2>
-        <p className="text-muted-foreground">Keep swiping to find your perfect furry match!</p>
-        <Button onClick={() => window.location.href='/'} className="mt-6">Start Swiping</Button>
+        <h2 className="text-2xl font-headline mb-2">目前沒有配對</h2>
+        <p className="text-muted-foreground">繼續滑動卡片來尋找您完美的毛茸茸夥伴！</p>
+        <Button onClick={() => window.location.href='/'} className="mt-6">開始滑卡</Button>
       </div>
     );
   }
 
   return (
     <div className="space-y-8">
-      <h1 className="text-3xl md:text-4xl font-headline font-bold text-primary text-center">Your Matches</h1>
+      <h1 className="text-3xl md:text-4xl font-headline font-bold text-primary text-center">您的配對</h1>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {likedDogs.map((dog) => (
           <Card key={dog.id} className="flex flex-col overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 rounded-lg">
@@ -58,23 +59,23 @@ export default function MatchesPage() {
             </CardHeader>
             <CardContent className="p-4 flex-grow">
               <CardTitle className="text-2xl font-headline text-primary">{dog.name}</CardTitle>
-              <CardDescription className="text-sm text-muted-foreground">{dog.breed}, {dog.age} years</CardDescription>
+              <CardDescription className="text-sm text-muted-foreground">{dog.breed}, {dog.age} 歲</CardDescription>
               <p className="mt-2 text-sm line-clamp-2">{dog.description}</p>
             </CardContent>
             <CardFooter className="p-4 border-t grid grid-cols-2 gap-2">
               <Button variant="outline" onClick={() => handleShowDetails(dog.id)} className="w-full">
-                <Info className="mr-2 h-4 w-4" /> Details
+                <Info className="mr-2 h-4 w-4" /> 詳細資料
               </Button>
               {dog.liveStreamUrl ? (
                 <Button 
-                  onClick={() => handleShowDetails(dog.id)} // Opens modal, which can show livestream
+                  onClick={() => handleShowDetails(dog.id)}
                   className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
                 >
-                  <Video className="mr-2 h-4 w-4" /> Live View
+                  <Video className="mr-2 h-4 w-4" /> 即時影像
                 </Button>
               ) : (
                  <Button variant="secondary" disabled className="w-full">
-                  <Video className="mr-2 h-4 w-4" /> No Stream
+                  <Video className="mr-2 h-4 w-4" /> 無直播
                 </Button>
               )}
             </CardFooter>

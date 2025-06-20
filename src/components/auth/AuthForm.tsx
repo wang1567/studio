@@ -1,7 +1,7 @@
 
 "use client";
 
-import * as React from 'react'; // Added this line
+import * as React from 'react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -19,21 +19,20 @@ import Link from 'next/link';
 
 
 const loginSchema = z.object({
-  email: z.string().email({ message: 'Invalid email address' }),
-  password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+  email: z.string().email({ message: '無效的電子郵件地址' }),
+  password: z.string().min(6, { message: '密碼長度至少需6個字元' }),
 });
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-// Placeholder for signup schema, can be expanded later
 const signupSchema = z.object({
-  email: z.string().email({ message: 'Invalid email address' }),
-  password: z.string().min(6, { message: 'Password must be at least 6 characters' }),
+  email: z.string().email({ message: '無效的電子郵件地址' }),
+  password: z.string().min(6, { message: '密碼長度至少需6個字元' }),
   confirmPassword: z.string(),
   role: z.enum(['adopter', 'caregiver']),
-  fullName: z.string().min(2, { message: 'Full name must be at least 2 characters' }).optional(),
+  fullName: z.string().min(2, { message: '全名至少需2個字元' }).optional(),
 }).refine(data => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
+  message: "密碼不相符",
   path: ["confirmPassword"],
 });
 
@@ -64,18 +63,18 @@ export const AuthForm = () => {
       if (authMode === 'login') {
         const { email, password } = data as LoginFormValues;
         await login(email, password);
-        toast({ title: 'Login Successful', description: "Welcome back!" });
+        toast({ title: '登入成功', description: "歡迎回來！" });
         router.push('/profile');
       } else {
         const { email, password, role, fullName } = data as SignupFormValues;
         await signUp(email, password, role, fullName);
-        toast({ title: 'Signup Successful', description: 'Welcome! Please check your email to verify your account.' });
-        setAuthMode('login'); // Switch to login after successful signup or prompt for verification
+        toast({ title: '註冊成功', description: '歡迎！請檢查您的電子郵件以驗證您的帳戶。' });
+        setAuthMode('login'); 
       }
     } catch (error: any) {
       toast({
-        title: 'Authentication Error',
-        description: error.message || 'An unexpected error occurred.',
+        title: '驗證錯誤',
+        description: error.message || '發生未預期的錯誤。',
         variant: 'destructive',
       });
     }
@@ -85,22 +84,22 @@ export const AuthForm = () => {
     <Card className="w-full shadow-2xl">
       <CardHeader className="text-center">
         <CardTitle className="text-3xl font-headline text-primary">
-          {authMode === 'login' ? 'Welcome Back!' : 'Create Account'}
+          {authMode === 'login' ? '歡迎回來！' : '建立帳戶'}
         </CardTitle>
         <CardDescription>
-          {authMode === 'login' ? 'Login to continue your PawsConnect journey.' : 'Join PawsConnect to find or help furry friends.'}
+          {authMode === 'login' ? '登入以繼續您的 PawsConnect 旅程。' : '加入 PawsConnect 來尋找或幫助毛茸茸的朋友。'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6 p-6">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">電子郵件</Label>
             <Input id="email" type="email" {...register('email')} placeholder="you@example.com" />
             {errors.email && <p className="text-xs text-destructive mt-1">{errors.email.message}</p>}
           </div>
 
           <div>
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">密碼</Label>
             <Input id="password" type="password" {...register('password')} placeholder="••••••••" />
             {errors.password && <p className="text-xs text-destructive mt-1">{errors.password.message}</p>}
           </div>
@@ -108,21 +107,21 @@ export const AuthForm = () => {
           {authMode === 'signup' && (
             <>
               <div>
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Label htmlFor="confirmPassword">確認密碼</Label>
                 <Input id="confirmPassword" type="password" {...register('confirmPassword')} placeholder="••••••••" />
                 {errors.confirmPassword && <p className="text-xs text-destructive mt-1">{errors.confirmPassword.message}</p>}
               </div>
               <div>
-                <Label htmlFor="fullName">Full Name (Optional)</Label>
-                <Input id="fullName" type="text" {...register('fullName')} placeholder="Your Name" />
+                <Label htmlFor="fullName">全名 (選填)</Label>
+                <Input id="fullName" type="text" {...register('fullName')} placeholder="您的姓名" />
                 {errors.fullName && <p className="text-xs text-destructive mt-1">{errors.fullName.message}</p>}
               </div>
               <div>
-                <Label>I am a...</Label>
+                <Label>我的身份是...</Label>
                  <Tabs defaultValue="adopter" onValueChange={(value) => setSelectedRole(value as UserRole)} className="w-full">
                   <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="adopter">Potential Adopter</TabsTrigger>
-                    <TabsTrigger value="caregiver">Shelter Caregiver</TabsTrigger>
+                    <TabsTrigger value="adopter">潛在領養者</TabsTrigger>
+                    <TabsTrigger value="caregiver">收容所照顧者</TabsTrigger>
                   </TabsList>
                 </Tabs>
                 <input type="hidden" {...register('role')} value={selectedRole} />
@@ -132,17 +131,17 @@ export const AuthForm = () => {
           )}
 
           <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" disabled={isLoadingAuth}>
-            {isLoadingAuth ? (authMode === 'login' ? 'Logging in...' : 'Signing up...') : (authMode === 'login' ? 'Login' : 'Sign Up')}
+            {isLoadingAuth ? (authMode === 'login' ? '登入中...' : '註冊中...') : (authMode === 'login' ? '登入' : '註冊')}
           </Button>
         </form>
       </CardContent>
       <CardFooter className="flex flex-col items-center space-y-2 p-6 pt-0">
         <Button variant="link" onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')} className="text-sm text-primary">
-          {authMode === 'login' ? "Don't have an account? Sign Up" : 'Already have an account? Login'}
+          {authMode === 'login' ? "還沒有帳戶嗎？立即註冊" : '已經有帳戶了？立即登入'}
         </Button>
         {authMode === 'login' && (
           <Link href="#" className="text-xs text-muted-foreground hover:text-primary">
-            Forgot password?
+            忘記密碼？
           </Link>
         )}
       </CardFooter>

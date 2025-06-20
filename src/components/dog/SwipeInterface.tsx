@@ -6,9 +6,8 @@ import type { Dog } from '@/types';
 import { DogCard } from './DogCard';
 import { DogDetailsModal } from './DogDetailsModal';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, PawPrint } from 'lucide-react'; // Added PawPrint
+import { RotateCcw, PawPrint } from 'lucide-react';
 import { usePawsConnect } from '@/context/PawsConnectContext';
-// import { AnimatePresence, motion } from 'framer-motion'; // Assuming framer-motion can be added or using Tailwind animations
 
 export const SwipeInterface = () => {
   const { 
@@ -18,7 +17,7 @@ export const SwipeInterface = () => {
     passDog, 
     currentDogIndex, 
     setCurrentDogIndex,
-    isLoadingDogs // Added
+    isLoadingDogs
   } = usePawsConnect();
   
   const [selectedDogDetails, setSelectedDogDetails] = useState<Dog | null>(null);
@@ -58,23 +57,18 @@ export const SwipeInterface = () => {
     return (
       <div className="flex flex-col items-center justify-center h-[70vh] text-center">
         <PawPrint className="w-16 h-16 text-primary animate-spin mb-4" />
-        <h2 className="text-2xl font-headline">Fetching Pawtential Friends...</h2>
-        <p className="text-muted-foreground">Please wait a moment.</p>
+        <h2 className="text-2xl font-headline">正在尋找毛夥伴...</h2>
+        <p className="text-muted-foreground">請稍候片刻。</p>
       </div>
     );
   }
   
-  // This check should come after isLoadingDogs
   if (dogsToSwipe.length === 0 || currentDogIndex >= dogsToSwipe.length) {
      return (
       <div className="flex flex-col items-center justify-center h-[70vh] text-center">
-        <h2 className="text-2xl font-headline mb-4">That's Everyone for Now!</h2>
-        <p className="text-muted-foreground mb-6">You've swiped through all available dogs. Check back later for new furry friends!</p>
-        {/* Optional: Restart Swiping if needed, but might be better to just show matches. */}
-        {/* <Button onClick={() => setCurrentDogIndex(0)} variant="outline" disabled={dogsToSwipe.length === 0}>
-          <RotateCcw className="mr-2 h-4 w-4" /> Restart Swiping
-        </Button> */}
-         <p className="text-muted-foreground mt-4">You have <span className="font-bold text-primary">{likedDogs.length}</span> dog(s) in your matches.</p>
+        <h2 className="text-2xl font-headline mb-4">目前沒有更多狗狗了！</h2>
+        <p className="text-muted-foreground mb-6">您已看過所有可配對的狗狗。請稍後再來看看有沒有新的毛孩朋友！</p>
+         <p className="text-muted-foreground mt-4">您的配對清單中有 <span className="font-bold text-primary">{likedDogs.length}</span> 隻狗狗。</p>
       </div>
     );
   }
@@ -119,4 +113,3 @@ export const SwipeInterface = () => {
     </div>
   );
 };
-

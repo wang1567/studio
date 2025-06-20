@@ -12,23 +12,23 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (!isLoadingAuth && session) {
-      router.replace('/profile'); // Or a role-based dashboard
+      router.replace('/profile'); // 或基於角色的儀表板
     }
   }, [session, isLoadingAuth, router]);
 
   if (isLoadingAuth) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
-        <p>Loading...</p>
+        <p>載入中...</p>
       </div>
     );
   }
 
   if (session) {
-    // Already redirected by useEffect, but as a fallback:
+    // 已由 useEffect 重定向，但作為後備：
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
-        <p>You are already logged in. Redirecting...</p>
+        <p>您已登入。正在重定向...</p>
       </div>
     );
   }
