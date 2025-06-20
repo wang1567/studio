@@ -1,3 +1,4 @@
+
 "use client";
 
 import { usePawsConnect } from '@/context/PawsConnectContext';
@@ -6,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Heart, Settings, LogOut, UserCircle2 } from "lucide-react";
 import Link from "next/link";
+import { useState, useEffect } from 'react';
 
 export default function ProfilePage() {
   const { likedDogs } = usePawsConnect();
+  const [formattedJoinDate, setFormattedJoinDate] = useState<string | null>(null);
 
   // Mock user data
   const user = {
@@ -17,6 +20,12 @@ export default function ProfilePage() {
     avatarUrl: "https://placehold.co/100x100.png?text=AP",
     joinDate: "2023-01-15",
   };
+
+  useEffect(() => {
+    if (user.joinDate) {
+      setFormattedJoinDate(new Date(user.joinDate).toLocaleDateString());
+    }
+  }, [user.joinDate]);
 
   return (
     <div className="max-w-2xl mx-auto space-y-8">
@@ -34,7 +43,9 @@ export default function ProfilePage() {
           </Avatar>
           <CardTitle className="text-2xl font-headline">{user.name}</CardTitle>
           <p className="text-muted-foreground">{user.email}</p>
-          <p className="text-xs text-muted-foreground mt-1">Joined: {new Date(user.joinDate).toLocaleDateString()}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Joined: {formattedJoinDate || 'Loading...'}
+          </p>
         </CardHeader>
         <CardContent className="p-6 space-y-6">
           <div className="flex justify-around text-center">
