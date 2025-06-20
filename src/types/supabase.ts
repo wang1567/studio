@@ -99,6 +99,37 @@ export interface Database {
           }
         ]
       }
+      profiles: {
+        Row: {
+          id: string // uuid, primary key
+          updated_at: string | null // timestamptz
+          full_name: string | null // text
+          avatar_url: string | null // text
+          role: "adopter" | "caregiver" // type UserRole from src/types/index.ts
+        }
+        Insert: {
+          id: string // uuid, FK to auth.users.id
+          updated_at?: string | null
+          full_name?: string | null
+          avatar_url?: string | null
+          role: "adopter" | "caregiver"
+        }
+        Update: {
+          id?: string
+          updated_at?: string | null
+          full_name?: string | null
+          avatar_url?: string | null
+          role?: "adopter" | "caregiver"
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_id_fkey"
+            columns: ["id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -109,6 +140,7 @@ export interface Database {
     Enums: {
       gender_enum: "Male" | "Female" | "Unknown"
       dog_status_enum: "Available" | "Pending" | "Adopted"
+      user_role_enum: "adopter" | "caregiver"
     }
     CompositeTypes: {
       [_ in never]: never

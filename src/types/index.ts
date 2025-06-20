@@ -12,7 +12,7 @@ export interface FeedingSchedule {
 }
 
 export interface VaccinationRecord {
-  vaccineName: string;
+  vaccineName:string;
   dateAdministered: string; // Date string
   nextDueDate?: string; // Date string
 }
@@ -32,4 +32,14 @@ export interface Dog {
   status: 'Available' | 'Pending' | 'Adopted';
   location: string; // e.g., Shelter name or city
   personalityTraits: string[]; // e.g., ['Friendly', 'Playful', 'Calm']
+}
+
+export type UserRole = 'adopter' | 'caregiver';
+
+export interface Profile {
+  id: string; // Corresponds to Supabase auth user ID
+  role: UserRole;
+  fullName?: string | null;
+  avatarUrl?: string | null;
+  updatedAt?: string | null;
 }
