@@ -33,7 +33,7 @@ const PawsConnectContext = createContext<PawsConnectContextType | undefined>(und
 
 const defaultHealthRecord: HealthRecord = {
   lastCheckup: '',
-  conditions: [],
+  conditions: ['無'],
   notes: '未提供記錄',
 };
 
@@ -46,16 +46,16 @@ const defaultFeedingSchedule: FeedingSchedule = {
 
 // Helper to map Supabase dog row to our Dog type
 const mapDbDogToDogType = (dbDog: Database['public']['Tables']['dogs']['Row']): Dog => {
-  const photos = Array.isArray(dbDog.photos) ? dbDog.photos : [];
-  const personalityTraits = Array.isArray(dbDog.personality_traits) ? dbDog.personality_traits : [];
+  const photos = Array.isArray(dbDog.photos) ? dbDog.photos.filter(p => typeof p === 'string') : [];
+  const personalityTraits = Array.isArray(dbDog.personality_traits) ? dbDog.personality_traits.filter(p => typeof p === 'string') : [];
 
   let healthRecords: HealthRecord;
   try {
-    const parsedHr = dbDog.health_records as unknown; // Parse as unknown first
+    const parsedHr = dbDog.health_records as unknown;
     if (typeof parsedHr === 'object' && parsedHr !== null) {
-      healthRecords = { // Reconstruct safely
+      healthRecords = {
         lastCheckup: (parsedHr as HealthRecord).lastCheckup || '',
-        conditions: Array.isArray((parsedHr as HealthRecord).conditions) ? (parsedHr as HealthRecord).conditions : [],
+        conditions: Array.isArray((parsedHr as HealthRecord).conditions) ? (parsedHr as HealthRecord).conditions.filter(c => typeof c === 'string') : ['無'],
         notes: (parsedHr as HealthRecord).notes || '未提供記錄',
       };
     } else {
@@ -88,11 +88,11 @@ const mapDbDogToDogType = (dbDog: Database['public']['Tables']['dogs']['Row']): 
   try {
     const parsedVr = dbDog.vaccination_records as unknown;
     if (Array.isArray(parsedVr)) {
-      vaccinationRecords = parsedVr.map(vr => ({ // Reconstruct safely
+      vaccinationRecords = parsedVr.map(vr => ({
         vaccineName: (vr as VaccinationRecord).vaccineName || '未指定疫苗',
         dateAdministered: (vr as VaccinationRecord).dateAdministered || '',
         nextDueDate: (vr as VaccinationRecord).nextDueDate || undefined,
-      }));
+      })).filter(vr => vr.vaccineName && vr.dateAdministered);
     } else {
       vaccinationRecords = [];
     }
@@ -111,13 +111,13 @@ const mapDbDogToDogType = (dbDog: Database['public']['Tables']['dogs']['Row']): 
     gender: dogGender,
     photos: photos.length > 0 ? photos : ['https://placehold.co/600x400.png'],
     description: dbDog.description || '暫無描述。',
-    healthRecords,
-    feedingSchedule,
-    vaccinationRecords,
+    healthRecords: healthRecords || {...defaultHealthRecord},
+    feedingSchedule: feedingSchedule || {...defaultFeedingSchedule},
+    vaccinationRecords: vaccinationRecords || [],
     liveStreamUrl: dbDog.live_stream_url ?? undefined,
     status: dbDog.status || 'Available',
     location: dbDog.location || '未知地點',
-    personalityTraits: personalityTraits.length > 0 ? personalityTraits : ['個性未知'],
+    personalityTraits: personalityTraits.length > 0 ? personalityTraits : ['個性溫和'],
   };
 };
 
@@ -143,7 +143,7 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         .eq('id', currentUser.id)
         .single();
 
-      if (profileError && profileError.code !== 'PGRST116') { // PGRST116 means no rows found, which is fine for a new user
+      if (profileError && profileError.code !== 'PGRST116') { 
         console.error('Error fetching profile:', profileError);
         setProfile(null);
       } else {
@@ -188,6 +188,7 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
 
       if (dogsError) {
         console.error('Error fetching dogs from Supabase:', dogsError);
+        console.error('This might be due to missing or incorrect Row Level Security (RLS) policies on the "dogs" table. Please ensure SELECT access is allowed for the data to be fetched.');
         setMasterDogList([]);
         setLikedDogs([]);
         setIsLoadingDogs(false);
@@ -292,8 +293,9 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         .insert({ 
             id: authData.user.id, 
             role, 
-            full_name: fullName || null, // Ensure fullName is null if empty string or undefined
-            updated_at: new Date().toISOString() 
+            full_name: fullName || null,
+            updated_at: new Date().toISOString(),
+            avatar_url: null,
         });
       
       if (profileError) {
@@ -313,11 +315,12 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     setProfile(null);
     
-    setMasterDogList([]);
-    setLikedDogs([]);
-    setSeenDogIds(new Set());
-    setDogsToSwipe([]);
-    setCurrentDogIndex(0);
+    // Reset dog-related states upon logout
+    setMasterDogList([]); // Clear master list
+    setLikedDogs([]);    // Clear liked dogs
+    setSeenDogIds(new Set()); // Clear seen dogs
+    setDogsToSwipe([]);  // Clear swipeable dogs
+    setCurrentDogIndex(0); // Reset index
     
     setIsLoadingAuth(false);
     return { error };
@@ -354,3 +357,4 @@ export const usePawsConnect = () => {
   }
   return context;
 };
+
