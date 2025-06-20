@@ -18,17 +18,19 @@ interface DogDetailsModalProps {
   onClose: () => void;
 }
 
-const translateGender = (gender: 'Male' | 'Female' | 'Unknown'): string => {
+const translateGender = (gender: 'Male' | 'Female' | 'Unknown' | undefined): string => {
   switch (gender) {
     case 'Male': return '公';
     case 'Female': return '母';
     case 'Unknown': return '未知';
-    default: return gender;
+    default: return '未知';
   }
 };
 
 export const DogDetailsModal = ({ dog, isOpen, onClose }: DogDetailsModalProps) => {
   if (!dog) return null;
+
+  const dogPhotos = dog.photos && dog.photos.length > 0 ? dog.photos : ['https://placehold.co/600x400.png'];
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -53,11 +55,11 @@ export const DogDetailsModal = ({ dog, isOpen, onClose }: DogDetailsModalProps) 
             <div className="space-y-4">
               <Carousel className="w-full rounded-lg overflow-hidden shadow-lg">
                 <CarouselContent>
-                  {dog.photos.map((photo, index) => (
+                  {dogPhotos.map((photo, index) => (
                     <CarouselItem key={index}>
                       <div className="aspect-w-4 aspect-h-3">
                         <Image 
-                          src={photo} 
+                          src={photo || 'https://placehold.co/600x400.png'} 
                           alt={`${dog.name} 照片 ${index + 1}`} 
                           width={600}
                           height={400}
@@ -68,7 +70,7 @@ export const DogDetailsModal = ({ dog, isOpen, onClose }: DogDetailsModalProps) 
                     </CarouselItem>
                   ))}
                 </CarouselContent>
-                {dog.photos.length > 1 && (
+                {dogPhotos.length > 1 && (
                   <>
                     <CarouselPrevious className="absolute left-2 top-1/2 -translate-y-1/2" />
                     <CarouselNext className="absolute right-2 top-1/2 -translate-y-1/2" />
@@ -83,7 +85,7 @@ export const DogDetailsModal = ({ dog, isOpen, onClose }: DogDetailsModalProps) 
                   <span>{dog.location}</span>
                 </div>
                 <div className="flex flex-wrap gap-2 mt-2">
-                  {dog.personalityTraits.map(trait => (
+                  {dog.personalityTraits && dog.personalityTraits.map(trait => (
                     <Badge key={trait} variant="secondary" className="bg-accent/20 text-accent-foreground">{trait}</Badge>
                   ))}
                 </div>

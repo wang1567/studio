@@ -3,7 +3,6 @@
 
 import type { Dog, Profile, UserRole, HealthRecord, FeedingSchedule, VaccinationRecord } from '@/types';
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-// import { mockDogs } from '@/data/mockDogs'; // No longer using mockDogs directly for initial load
 import { supabase } from '@/lib/supabaseClient';
 import type { AuthError, Session, User } from '@supabase/supabase-js';
 import type { Database } from '@/types/supabase';
@@ -13,12 +12,12 @@ interface PawsConnectContextType {
   dogsToSwipe: Dog[];
   likedDogs: Dog[];
   seenDogIds: Set<string>;
-  likeDog: (dogId: string) => Promise<void>; // Now async
+  likeDog: (dogId: string) => Promise<void>;
   passDog: (dogId: string) => void;
   getDogById: (dogId: string) => Dog | undefined;
   currentDogIndex: number;
   setCurrentDogIndex: React.Dispatch<React.SetStateAction<number>>;
-  isLoadingDogs: boolean; // New loading state for dogs
+  isLoadingDogs: boolean;
 
   // Auth related state
   session: Session | null;
@@ -32,27 +31,98 @@ interface PawsConnectContextType {
 
 const PawsConnectContext = createContext<PawsConnectContextType | undefined>(undefined);
 
+const defaultHealthRecord: HealthRecord = {
+  lastCheckup: '',
+  conditions: [],
+  notes: '未提供記錄',
+};
+
+const defaultFeedingSchedule: FeedingSchedule = {
+  foodType: '未指定',
+  timesPerDay: 0,
+  portionSize: '未指定',
+  notes: '未提供記錄',
+};
+
 // Helper to map Supabase dog row to our Dog type
-const mapDbDogToDogType = (dbDog: Database['public']['Tables']['dogs']['Row']): Dog => ({
-  id: dbDog.id,
-  name: dbDog.name,
-  breed: dbDog.breed,
-  age: dbDog.age,
-  gender: dbDog.gender,
-  photos: dbDog.photos || [], // Ensure photos is an array
-  description: dbDog.description,
-  healthRecords: dbDog.health_records as HealthRecord,
-  feedingSchedule: dbDog.feeding_schedule as FeedingSchedule,
-  vaccinationRecords: dbDog.vaccination_records as VaccinationRecord[],
-  liveStreamUrl: dbDog.live_stream_url ?? undefined,
-  status: dbDog.status,
-  location: dbDog.location,
-  personalityTraits: dbDog.personality_traits || [], // Ensure personalityTraits is an array
-});
+const mapDbDogToDogType = (dbDog: Database['public']['Tables']['dogs']['Row']): Dog => {
+  const photos = Array.isArray(dbDog.photos) ? dbDog.photos : [];
+  const personalityTraits = Array.isArray(dbDog.personality_traits) ? dbDog.personality_traits : [];
+
+  let healthRecords: HealthRecord;
+  try {
+    const parsedHr = dbDog.health_records as unknown; // Parse as unknown first
+    if (typeof parsedHr === 'object' && parsedHr !== null) {
+      healthRecords = { // Reconstruct safely
+        lastCheckup: (parsedHr as HealthRecord).lastCheckup || '',
+        conditions: Array.isArray((parsedHr as HealthRecord).conditions) ? (parsedHr as HealthRecord).conditions : [],
+        notes: (parsedHr as HealthRecord).notes || '未提供記錄',
+      };
+    } else {
+      healthRecords = { ...defaultHealthRecord };
+    }
+  } catch (e) {
+    console.error('Error parsing health_records:', e, dbDog.health_records);
+    healthRecords = { ...defaultHealthRecord };
+  }
+
+  let feedingSchedule: FeedingSchedule;
+  try {
+    const parsedFs = dbDog.feeding_schedule as unknown;
+     if (typeof parsedFs === 'object' && parsedFs !== null) {
+        feedingSchedule = {
+            foodType: (parsedFs as FeedingSchedule).foodType || '未指定',
+            timesPerDay: typeof (parsedFs as FeedingSchedule).timesPerDay === 'number' ? (parsedFs as FeedingSchedule).timesPerDay : 0,
+            portionSize: (parsedFs as FeedingSchedule).portionSize || '未指定',
+            notes: (parsedFs as FeedingSchedule).notes || '未提供記錄',
+        };
+    } else {
+      feedingSchedule = { ...defaultFeedingSchedule };
+    }
+  } catch (e) {
+    console.error('Error parsing feeding_schedule:', e, dbDog.feeding_schedule);
+    feedingSchedule = { ...defaultFeedingSchedule };
+  }
+
+  let vaccinationRecords: VaccinationRecord[];
+  try {
+    const parsedVr = dbDog.vaccination_records as unknown;
+    if (Array.isArray(parsedVr)) {
+      vaccinationRecords = parsedVr.map(vr => ({ // Reconstruct safely
+        vaccineName: (vr as VaccinationRecord).vaccineName || '未指定疫苗',
+        dateAdministered: (vr as VaccinationRecord).dateAdministered || '',
+        nextDueDate: (vr as VaccinationRecord).nextDueDate || undefined,
+      }));
+    } else {
+      vaccinationRecords = [];
+    }
+  } catch (e) {
+    console.error('Error parsing vaccination_records:', e, dbDog.vaccination_records);
+    vaccinationRecords = [];
+  }
+  
+  const dogGender = dbDog.gender === 'Male' || dbDog.gender === 'Female' ? dbDog.gender : 'Unknown';
+
+  return {
+    id: dbDog.id,
+    name: dbDog.name || '未命名狗狗',
+    breed: dbDog.breed || '未知品種',
+    age: typeof dbDog.age === 'number' ? dbDog.age : 0,
+    gender: dogGender,
+    photos: photos.length > 0 ? photos : ['https://placehold.co/600x400.png'],
+    description: dbDog.description || '暫無描述。',
+    healthRecords,
+    feedingSchedule,
+    vaccinationRecords,
+    liveStreamUrl: dbDog.live_stream_url ?? undefined,
+    status: dbDog.status || 'Available',
+    location: dbDog.location || '未知地點',
+    personalityTraits: personalityTraits.length > 0 ? personalityTraits : ['個性未知'],
+  };
+};
 
 
 export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
-  // Dog related state
   const [masterDogList, setMasterDogList] = useState<Dog[]>([]);
   const [dogsToSwipe, setDogsToSwipe] = useState<Dog[]>([]);
   const [likedDogs, setLikedDogs] = useState<Dog[]>([]);
@@ -60,7 +130,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
   const [currentDogIndex, setCurrentDogIndex] = useState(0);
   const [isLoadingDogs, setIsLoadingDogs] = useState(true);
 
-  // Auth related state
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -74,7 +143,7 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         .eq('id', currentUser.id)
         .single();
 
-      if (profileError && profileError.code !== 'PGRST116') {
+      if (profileError && profileError.code !== 'PGRST116') { // PGRST116 means no rows found, which is fine for a new user
         console.error('Error fetching profile:', profileError);
         setProfile(null);
       } else {
@@ -100,7 +169,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       await fetchAndSetProfile(currentUser);
-      // If user changes, dog data also needs to be re-evaluated (handled by next useEffect)
       setIsLoadingAuth(false);
     });
 
@@ -109,7 +177,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [fetchAndSetProfile]);
 
-  // Fetch dogs and user's likes
   useEffect(() => {
     const loadInitialDogData = async () => {
       setIsLoadingDogs(true);
@@ -123,7 +190,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         console.error('Error fetching dogs from Supabase:', dogsError);
         setMasterDogList([]);
         setLikedDogs([]);
-        // setDogsToSwipe([]); // will be handled by the derivation useEffect
         setIsLoadingDogs(false);
         return;
       }
@@ -146,19 +212,18 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
           setLikedDogs(currentUserLikedDogs);
         }
       } else {
-        setLikedDogs([]); // No user, so no liked dogs from DB
+        setLikedDogs([]);
       }
-      setCurrentDogIndex(0); // Reset index for new set of dogs
+      setCurrentDogIndex(0);
       setIsLoadingDogs(false);
     };
 
     loadInitialDogData();
-  }, [user]); // Reload when user changes
+  }, [user]); 
 
-  // Derive dogsToSwipe from masterDogList, likedDogs, and seenDogIds
   useEffect(() => {
     if (isLoadingDogs) {
-      setDogsToSwipe([]); // Don't show anything while master list is loading
+      setDogsToSwipe([]);
       return;
     }
 
@@ -168,7 +233,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
       !seenDogIds.has(dog.id)
     );
     setDogsToSwipe(dogsForSwiping);
-    // Do not reset currentDogIndex here, as it's managed by swipe actions
   }, [masterDogList, likedDogs, seenDogIds, isLoadingDogs]);
 
 
@@ -187,9 +251,7 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         .insert({ user_id: user.id, dog_id: dogId });
       if (error) {
         console.error('Error saving like to Supabase:', error.message);
-        // Revert optimistic update or show toast
         setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
-        // SeenDogIds should not be reverted as the user did "see" and action it.
       }
     }
   };
@@ -202,7 +264,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
     return masterDogList.find(dog => dog.id === dogId);
   };
 
-  // Auth functions
   const login = async (email: string, password: string) => {
     setIsLoadingAuth(true);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -231,7 +292,7 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         .insert({ 
             id: authData.user.id, 
             role, 
-            full_name: fullName,
+            full_name: fullName || null, // Ensure fullName is null if empty string or undefined
             updated_at: new Date().toISOString() 
         });
       
@@ -252,13 +313,11 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
     setProfile(null);
     
-    // Reset dog-related state on logout
     setMasterDogList([]);
     setLikedDogs([]);
     setSeenDogIds(new Set());
     setDogsToSwipe([]);
     setCurrentDogIndex(0);
-    // isLoadingDogs will be handled by the useEffect for loadInitialDogData due to user change
     
     setIsLoadingAuth(false);
     return { error };
@@ -273,9 +332,8 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         passDog, 
         getDogById,
         currentDogIndex,
-        // setDogsToSwipe, // No longer directly settable from outside if derived
         setCurrentDogIndex,
-        isLoadingDogs, // Added
+        isLoadingDogs,
         session,
         user,
         profile,
@@ -296,4 +354,3 @@ export const usePawsConnect = () => {
   }
   return context;
 };
-
