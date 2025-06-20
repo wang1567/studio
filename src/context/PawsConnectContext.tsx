@@ -5,11 +5,10 @@ import type { Dog, Profile, UserRole, HealthRecord, FeedingSchedule, Vaccination
 import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import type { User as SupabaseUser, Session as SupabaseSession, PostgrestError } from '@supabase/supabase-js';
-// Adjust the import to correctly type the 'dogs' view output.
 // The 'DbDog' type will now represent a row from the 'dogs_for_adoption_view'.
+import type { Database } from '@/types/supabase';
 type DbDog = Database['public']['Views']['dogs_for_adoption_view']['Row'];
 type DbProfile = Database['public']['Tables']['profiles']['Row'];
-import type { Database } from '@/types/supabase';
 
 
 interface PawsConnectContextType {
@@ -34,7 +33,6 @@ interface PawsConnectContextType {
 
 const PawsConnectContext = createContext<PawsConnectContextType | undefined>(undefined);
 
-// This function maps a row from the `dogs_for_adoption_view` to the frontend `Dog` type.
 const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
   const defaultHealthRecord: HealthRecord = { lastCheckup: '', conditions: ['無'], notes: '未提供記錄' };
   const defaultFeedingSchedule: FeedingSchedule = { foodType: '未指定', timesPerDay: 0, portionSize: '未指定', notes: '未提供記錄' };
@@ -42,9 +40,8 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
   const photos = Array.isArray(dbViewDog.photos) ? dbViewDog.photos.filter((p): p is string => typeof p === 'string') : [];
   const personalityTraits = Array.isArray(dbViewDog.personality_traits) ? dbViewDog.personality_traits.filter((p): p is string => typeof p === 'string') : [];
   
-  // The view should provide these as valid JSONB or null
-  const healthRecordsData = dbViewDog.health_records as HealthRecord || defaultHealthRecord;
-  const feedingScheduleData = dbViewDog.feeding_schedule as FeedingSchedule || defaultFeedingSchedule;
+  const healthRecordsData = (dbViewDog.health_records as unknown) as HealthRecord || defaultHealthRecord;
+  const feedingScheduleData = (dbViewDog.feeding_schedule as unknown) as FeedingSchedule || defaultFeedingSchedule;
   const vaccinationRecordsData = (dbViewDog.vaccination_records ? (Array.isArray(dbViewDog.vaccination_records) ? dbViewDog.vaccination_records : []) : []) as VaccinationRecord[];
 
   return {
@@ -52,7 +49,7 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
     name: dbViewDog.name || '未命名狗狗',
     breed: dbViewDog.breed || '未知品種',
     age: typeof dbViewDog.age === 'number' ? dbViewDog.age : 0,
-    gender: dbViewDog.gender === 'Male' || dbViewDog.gender === 'Female' ? dbViewDog.gender : 'Unknown',
+    gender: dbViewDog.gender === 'Male' || dbViewDog.gender === 'Female' || dbViewDog.gender === 'Unknown' ? dbViewDog.gender : 'Unknown',
     photos: photos.length > 0 ? photos : ['https://placehold.co/600x400.png?text=' + encodeURIComponent(dbViewDog.name || 'Dog')],
     description: dbViewDog.description || '暫無描述。',
     healthRecords: {
@@ -157,7 +154,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
 
 
   const loadInitialDogData = useCallback(async () => {
-    // Query the 'dogs_for_adoption_view' instead of a 'dogs' table
     const sourceToQuery = 'dogs_for_adoption_view'; 
     setIsLoadingDogs(true);
     try {
@@ -166,23 +162,28 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         .select('*');
 
       if (dogsError) {
-        // Check if dogsError is an empty object and dogsData is also effectively empty (null, undefined, or empty array)
-        // This is a strong indicator of RLS issues or silent failures where no data is returned.
-        if (dogsError && typeof dogsError === 'object' && Object.keys(dogsError).length === 0 && (dogsData === null || dogsData === undefined || (Array.isArray(dogsData) && dogsData.length === 0))) {
+        const isErrorAnEmptyObject = typeof dogsError === 'object' && dogsError !== null && Object.keys(dogsError).length === 0;
+
+        if (isErrorAnEmptyObject) {
           console.error(
-            `Error fetching dogs from Supabase view '${sourceToQuery}': Received an empty error object and no data. This often indicates that Row Level Security (RLS) policies on the view OR its underlying tables (pets, health_records, etc.) are preventing access for the current role (anon or authenticated), or there are no dogs matching the query.\n\n` +
+            `Error fetching dogs from Supabase view '${sourceToQuery}': Received an EMPTY error object. This STRONGLY indicates Row Level Security (RLS) policies or table/view permission issues are preventing full access or causing an anomaly. Please check:\n\n` +
             "【請檢查您的 Supabase 設定】:\n" +
-            `1. '${sourceToQuery}' 檢視的 RLS 原則：確認 'anon' 和 'authenticated' 角色有 SELECT 權限。\n` +
-            "2. 底層資料表 (pets, health_records, feeding_records, vaccine_records) 的 RLS 原則：執行檢視的角色也需要對這些底層資料表有 SELECT 權限。\n" +
-            "3. 資料確認：確認您的 'pets' 表格中有資料，且符合檢視的篩選條件 (如果有的話)。\n",
+            `1. RLS policies on the VIEW '${sourceToQuery}'.\n` +
+            "2. RLS policies on all UNDERLYING TABLES used by the view (e.g., 'pets', 'health_records', 'feeding_records', 'vaccine_records'). Ensure the querying role ('anon' or 'authenticated') has SELECT permissions.\n" +
+            "3. Data existence: Verify that data exists in the 'pets' table and related tables that would match the view's criteria.\n" +
+            "4. Supabase Logs: Check the logs in your Supabase project dashboard (Database > Logs or Query Performance) for more detailed error messages from Postgres.\n" +
+            "5. View Definition: Double-check the view's SQL definition for correctness and that it can properly access and join data from all underlying tables.\n" +
+            `6. Returned Data State: Note that even if some data was returned (dogsData is not null/empty), an empty error object signifies a problem. Current dogsData: ${JSON.stringify(dogsData)}`,
             "原始錯誤物件:", dogsError
           );
         } else {
+          // This means dogsError is not null, and it's NOT an empty object. So it's a PostgrestError with actual content.
           console.error(`Error fetching dogs from Supabase view '${sourceToQuery}':`, dogsError);
         }
         setMasterDogList([]);
         setLikedDogs([]); // Also reset liked dogs if initial fetch fails
-      } else if (dogsData) {
+      } else if (dogsData && dogsData.length > 0) {
+        // Successfully fetched dogs
         const allDogsFromDb = dogsData.map(mapDbDogToDogType);
         setMasterDogList(allDogsFromDb);
 
@@ -203,9 +204,21 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         } else {
             setLikedDogs([]); 
         }
+      } else {
+         // No error from Supabase, but dogsData is null, undefined, or an empty array.
+        console.warn(
+            `Warning: Fetched no dogs from Supabase view '${sourceToQuery}' (data is null, undefined, or empty array) and no error was reported by Supabase. This might be due to:\n` +
+            "1. Row Level Security (RLS) policies silently filtering all records.\n" +
+            "2. The view or underlying tables being genuinely empty or having no records matching the view's criteria.\n\n" +
+            "【請檢查您的 Supabase 設定】:\n" +
+            `* RLS policies on the VIEW '${sourceToQuery}' and its UNDERLYING TABLES.\n` +
+            "* Data existence in 'pets' and related tables.\n"
+        );
+        setMasterDogList([]);
+        setLikedDogs([]);
       }
     } catch (error) {
-      console.error(`Error fetching dogs from Supabase view '${sourceToQuery}' (catch block):`, error);
+      console.error(`Unhandled error during dog data fetch from Supabase view '${sourceToQuery}':`, error);
       setMasterDogList([]);
       setLikedDogs([]);
     } finally {
@@ -252,12 +265,11 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
       try {
         const { error } = await supabase.from('user_dog_likes').insert({
           user_id: user.id,
-          dog_id: dogId, // This dogId comes from pets.id via the view
+          dog_id: dogId, 
         });
         if (error) throw error;
       } catch (error) {
         console.error("儲存按讚記錄至 Supabase 時發生錯誤:", error);
-        // Revert optimistic update
         setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
       }
     }
@@ -277,7 +289,7 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     setIsLoadingAuth(false);
     if (error) return { session: null, error: error.message || '登入失敗。請檢查您的帳號密碼。' };
-    if (data.session) await loadInitialDogData(); // Reload dogs after login
+    if (data.session) await loadInitialDogData(); 
     return { session: data.session, error: null };
   };
 
@@ -308,12 +320,10 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
     if (profileError) {
       setIsLoadingAuth(false);
       console.error('建立個人資料時發生錯誤:', profileError);
-      // User is signed up, but profile creation failed. Consider how to handle this.
-      // Maybe sign them out and ask to retry? For now, just return the error.
       return { user: authData.user, error: '註冊成功，但建立個人資料失敗: ' + profileError.message };
     }
     
-     setProfile({ // Optimistically set profile
+     setProfile({ 
         id: authData.user.id,
         role,
         fullName: fullName || email.split('@')[0],
@@ -321,7 +331,7 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         updatedAt: new Date().toISOString(),
       });
     
-    await loadInitialDogData(); // Reload dogs after sign up and profile creation
+    await loadInitialDogData(); 
     setIsLoadingAuth(false);
     return { user: authData.user, error: null };
   };
@@ -333,13 +343,11 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
       setIsLoadingAuth(false);
       return { error: error.message || '登出時發生錯誤。' };
     }
-    // Reset state, dogs will be reloaded by loadInitialDogData based on new auth state
     setMasterDogList([]);
     setLikedDogs([]);
     setSeenDogIds(new Set());
     setCurrentDogIndex(0);
     setDogsToSwipe([]);
-    // loadInitialDogData will be called by the useEffect listening to user/isLoadingAuth
     setIsLoadingAuth(false); 
     return { error: null };
   };
@@ -376,3 +384,4 @@ export const usePawsConnect = () => {
   return context;
 };
 
+    
