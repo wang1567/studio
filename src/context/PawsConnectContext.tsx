@@ -34,7 +34,7 @@ interface PawsConnectContextType {
 const PawsConnectContext = React.createContext<PawsConnectContextType | undefined>(undefined);
 
 const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
-  const defaultHealthRecord: HealthRecord = { lastCheckup: '', conditions: ['無'], notes: '未提供記錄' };
+  const defaultHealthRecord: HealthRecord = { lastCheckup: '', conditions: [], notes: '未提供記錄' };
   const defaultFeedingSchedule: FeedingSchedule = { foodType: '未指定', timesPerDay: 0, portionSize: '未指定', notes: '未提供記錄' };
   
   const photos = Array.isArray(dbViewDog.photos) ? dbViewDog.photos.filter((p): p is string => typeof p === 'string') : [];
@@ -157,7 +157,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
             `1. RLS policies on the VIEW '${sourceToQuery}'. Ensure the querying role ('anon' or 'authenticated') has SELECT permissions.\n` +
             "2. RLS policies on all UNDERLYING TABLES used by the view (e.g., 'pets', 'health_records', etc.). The querying role needs SELECT access on these too.\n" +
             "3. Data existence: Verify that data exists in the 'pets' table and related tables that would match the view's criteria and RLS.\n" +
-            "4. Supabase Logs: Check the logs in your Supabase project dashboard (Database > Logs or Query Performance) for more detailed error messages from Postgres related to permission denials.\n",
+            "4. Supabase Logs: Check the logs in your Supabase project dashboard (Database > Logs or Query Performance) for more detailed error messages from Postgres related to permission denials.\n\n" +
             "原始錯誤物件:", dogsError
           );
         } else {

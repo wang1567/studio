@@ -21,6 +21,11 @@ const formatDateSafe = (dateString: string | undefined | null): string => {
 };
 
 export const HealthRecordsDisplay = ({ dog }: HealthRecordsDisplayProps) => {
+  // Filter out empty or "None"/"無" strings to get a clean list of meaningful conditions.
+  const meaningfulConditions = dog.healthRecords?.conditions?.filter(
+    c => c && c.trim() && c.trim().toLowerCase() !== 'none' && c.trim() !== '無'
+  );
+
   return (
     <div className="space-y-6">
       <Card className="shadow-lg">
@@ -34,10 +39,10 @@ export const HealthRecordsDisplay = ({ dog }: HealthRecordsDisplayProps) => {
           <p><strong>上次檢查：</strong> {formatDateSafe(dog.healthRecords?.lastCheckup)}</p>
           <div>
             <strong>狀況：</strong>
-            {dog.healthRecords?.conditions && dog.healthRecords.conditions.length > 0 && dog.healthRecords.conditions[0] !== "None" ? (
+            {meaningfulConditions && meaningfulConditions.length > 0 ? (
               <div className="flex flex-wrap gap-2 mt-1">
-                {dog.healthRecords.conditions.map((condition, index) => (
-                  <Badge key={index} variant="secondary">{condition || '未註明'}</Badge>
+                {meaningfulConditions.map((condition, index) => (
+                  <Badge key={index} variant="secondary">{condition}</Badge>
                 ))}
               </div>
             ) : (
