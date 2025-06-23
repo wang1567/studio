@@ -2,11 +2,11 @@
 "use client";
 
 import type { Dog, Profile, UserRole, HealthRecord, FeedingSchedule, VaccinationRecord } from '@/types';
-import React, from 'react';
+import React, { useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import type { User as SupabaseUser, Session as SupabaseSession, PostgrestError } from '@supabase/supabase-js';
 import type { Database } from '@/types/supabase';
-import { toast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 type DbDog = Database['public']['Views']['dogs_for_adoption_view']['Row'];
 type DbProfile = Database['public']['Tables']['profiles']['Row'];
 
@@ -55,7 +55,7 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
     description: dbViewDog.description || '暫無描述。',
     healthRecords: {
       lastCheckup: healthRecordsData?.lastCheckup || defaultHealthRecord.lastCheckup,
-      conditions: healthRecordsData?.conditions && healthRecordsData.conditions.length > 0 ? healthRecordsData.conditions : defaultHealthRecord.conditions,
+      conditions: healthRecordsData?.conditions && healthRecordsData.conditions.length > 0 ? healthRecordsData.conditions : [],
       notes: healthRecordsData?.notes || defaultHealthRecord.notes,
     },
     feedingSchedule: {
@@ -89,6 +89,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   const [profile, setProfile] = React.useState<Profile | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = React.useState(true);
   const [isUpdatingProfile, setIsUpdatingProfile] = React.useState(false);
+  const authCheckCompleted = useRef(false);
 
 
   React.useEffect(() => {
@@ -129,7 +130,10 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         } catch (e) {
           console.error("處理身份驗證狀態變更時發生未預期的錯誤:", e);
         } finally {
-          setIsLoadingAuth(false);
+          if (!authCheckCompleted.current) {
+            setIsLoadingAuth(false);
+            authCheckCompleted.current = true;
+          }
         }
       }
     );
