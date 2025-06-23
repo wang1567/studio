@@ -2,7 +2,7 @@
 "use client";
 
 import type { Dog, Profile, UserRole, HealthRecord, FeedingSchedule, VaccinationRecord } from '@/types';
-import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
+import React, from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import type { User as SupabaseUser, Session as SupabaseSession, PostgrestError } from '@supabase/supabase-js';
 import type { Database } from '@/types/supabase';
@@ -30,7 +30,7 @@ interface PawsConnectContextType {
   updateProfile: (updates: { fullName?: string | null; avatarUrl?: string | null }) => Promise<{ success: boolean; error?: string | null; updatedProfile?: Profile | null }>;
 }
 
-const PawsConnectContext = createContext<PawsConnectContextType | undefined>(undefined);
+const PawsConnectContext = React.createContext<PawsConnectContextType | undefined>(undefined);
 
 const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
   const defaultHealthRecord: HealthRecord = { lastCheckup: '', conditions: ['無'], notes: '未提供記錄' };
@@ -76,21 +76,21 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
 };
 
 
-export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
-  const [masterDogList, setMasterDogList] = useState<Dog[]>([]);
-  const [dogsToSwipe, setDogsToSwipe] = useState<Dog[]>([]);
-  const [likedDogs, setLikedDogs] = useState<Dog[]>([]);
-  const [seenDogIds, setSeenDogIds] = useState<Set<string>>(new Set());
-  const [isLoadingDogs, setIsLoadingDogs] = useState(true);
+export const PawsConnectProvider = ({ children }: { children: React.ReactNode }) => {
+  const [masterDogList, setMasterDogList] = React.useState<Dog[]>([]);
+  const [dogsToSwipe, setDogsToSwipe] = React.useState<Dog[]>([]);
+  const [likedDogs, setLikedDogs] = React.useState<Dog[]>([]);
+  const [seenDogIds, setSeenDogIds] = React.useState<Set<string>>(new Set());
+  const [isLoadingDogs, setIsLoadingDogs] = React.useState(true);
 
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [session, setSession] = useState<SupabaseSession | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
-  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [user, setUser] = React.useState<SupabaseUser | null>(null);
+  const [session, setSession] = React.useState<SupabaseSession | null>(null);
+  const [profile, setProfile] = React.useState<Profile | null>(null);
+  const [isLoadingAuth, setIsLoadingAuth] = React.useState(true);
+  const [isUpdatingProfile, setIsUpdatingProfile] = React.useState(false);
 
 
-  useEffect(() => {
+  React.useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         try {
@@ -139,7 +139,7 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
 
-  const loadInitialDogData = useCallback(async () => {
+  const loadInitialDogData = React.useCallback(async () => {
     const sourceToQuery = 'dogs_for_adoption_view'; 
     setIsLoadingDogs(true);
     try {
@@ -207,7 +207,7 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
   }, [user]);
 
 
-  useEffect(() => {
+  React.useEffect(() => {
     // Once authentication state is resolved, load the initial dog data.
     if (!isLoadingAuth) {
       loadInitialDogData();
@@ -215,7 +215,7 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
   }, [isLoadingAuth, loadInitialDogData]);
 
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (isLoadingDogs || masterDogList.length === 0) {
       setDogsToSwipe([]);
       return;
@@ -242,40 +242,26 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
     }
     setSeenDogIds(prevSeenIds => new Set(prevSeenIds).add(dogId));
 
-    try {
-      const { error: insertError } = await supabase.from('user_dog_likes').insert({
-        user_id: user.id,
-        dog_id: dogId,
-      });
-      
-      if (insertError) {
-        if (typeof insertError === 'object' && insertError !== null && Object.keys(insertError).length === 0) {
-          console.error(
-            "儲存按讚記錄至 Supabase 時發生錯誤: 收到了空的錯誤物件。這通常表示 Supabase 的 Row Level Security (RLS) 政策阻止了此操作，或者 'user_dog_likes' 資料表權限不足。\n\n" +
-            "【請檢查您的 Supabase 設定】:\n" +
-            "1. RLS 政策: 確認 'user_dog_likes' 資料表有允許 'authenticated' 角色 INSERT 操作的 RLS 政策。一個常見的政策是：\n" +
-            "   `CREATE POLICY \"Users can insert their own likes.\" ON public.user_dog_likes FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);`\n" +
-            "2. 資料表權限: 在 Supabase Dashboard > Table Editor > 'user_dog_likes' > Table Privileges，確認 'authenticated' 角色擁有 INSERT 權限。\n",
-            "原始錯誤物件:", insertError
-          );
-        } else {
-           console.error(
-            "儲存按讚記錄至 Supabase 時發生錯誤。這可能是 RLS 政策問題、資料庫限制 (例如外鍵約束) 或其他資料庫錯誤。\n",
-            "Supabase 錯誤詳情:", insertError
-          );
-        }
-        
-        // Revert UI change on error
-        setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
-        return;
-      }
-    } catch (catchError: any) { 
+    const { error: insertError } = await supabase.from('user_dog_likes').insert({
+      user_id: user.id,
+      dog_id: dogId,
+    });
+    
+    if (insertError) {
       console.error(
-        "儲存按讚記錄時發生未預期的 JavaScript 錯誤 (非 Supabase 直接回傳的錯誤)。\n",
-        "錯誤詳情:", catchError
+        "儲存按讚記錄至 Supabase 時發生錯誤: 這很可能是 Row Level Security (RLS) 政策或資料表權限問題。\n\n" +
+        "【請檢查您的 Supabase 設定】:\n" +
+        "1. RLS 政策: 確認 'user_dog_likes' 資料表有允許 'authenticated' 角色 INSERT 操作的 RLS 政策。一個常見的政策是：\n" +
+        "   `CREATE POLICY \"Users can insert their own likes.\" ON public.user_dog_likes FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);`\n" +
+        "2. 資料表權限: 在 Supabase Dashboard > Table Editor > 'user_dog_likes' > Table Privileges，確認 'authenticated' 角色擁有 INSERT 權限。\n" +
+        "3. 外鍵約束: 確認您正在按讚的 `dog_id` 確實存在於 `pets` 資料表中。\n\n" +
+        "收到的原始 Supabase 錯誤:",
+        insertError
       );
+      
       // Revert UI change on error
       setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
+      return;
     }
   };
 
@@ -409,9 +395,11 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
 };
 
 export const usePawsConnect = () => {
-  const context = useContext(PawsConnectContext);
+  const context = React.useContext(PawsConnectContext);
   if (context === undefined) {
     throw new Error('usePawsConnect 必須在 PawsConnectProvider 內使用');
   }
   return context;
 };
+
+    
