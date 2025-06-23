@@ -32,7 +32,7 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle>帳戶管理</CardTitle>
            <CardDescription>管理您的帳戶資料。</CardDescription>
-        </Header>
+        </CardHeader>
         <CardContent className="space-y-4">
            <div>
              <h3 className="font-semibold">更改密碼</h3>
