@@ -1,12 +1,12 @@
 "use client";
 
 import Link from 'next/link';
-import { Dog, Heart, UserCircle, LogIn, LogOut, UserCircle2, Sun, Moon } from 'lucide-react'; // Added Sun, Moon
+import { Dog, Heart, UserCircle, LogIn, LogOut, UserCircle2, Sun, Moon, Settings } from 'lucide-react'; // Added Settings
 import { Button } from '@/components/ui/button';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { usePawsConnect } from '@/context/PawsConnectContext';
-import { useTheme } from '@/context/ThemeContext'; // Import useTheme
+import { useTheme } from '@/context/ThemeContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,7 +21,7 @@ export const Navbar = () => {
   const pathname = usePathname();
   const router = useRouter();
   const { user, profile, logout, isLoadingAuth } = usePawsConnect();
-  const { theme, toggleTheme } = useTheme(); // Use the theme context
+  const { theme, toggleTheme } = useTheme();
 
   const navItems = [
     { href: '/', label: '滑卡配對', icon: <Dog className="h-5 w-5" />, requiresAuth: false },
@@ -50,7 +50,7 @@ export const Navbar = () => {
           <Dog className="h-8 w-8" />
           <h1 className="text-2xl font-headline font-bold">PawsConnect</h1>
         </Link>
-        <div className="flex items-center gap-1 sm:gap-2"> {/* Reduced gap slightly */}
+        <div className="flex items-center gap-1 sm:gap-2">
           {navItems.map((item) => {
             if (item.requiresAuth && !user) return null;
             return (
@@ -106,6 +106,12 @@ export const Navbar = () => {
                   <Link href="/profile">
                     <UserCircle className="mr-2 h-4 w-4" />
                     個人資料
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/profile/settings">
+                    <Settings className="mr-2 h-4 w-4" />
+                    帳戶設定
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
