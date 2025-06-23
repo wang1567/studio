@@ -1,12 +1,11 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState } from 'react';
 import type { Dog } from '@/types';
 import { DogCard } from './DogCard';
 import { DogDetailsModal } from './DogDetailsModal';
-import { Button } from '@/components/ui/button';
-import { RotateCcw, PawPrint } from 'lucide-react';
+import { PawPrint } from 'lucide-react';
 import { usePawsConnect } from '@/context/PawsConnectContext';
 
 export const SwipeInterface = () => {
@@ -15,8 +14,6 @@ export const SwipeInterface = () => {
     likedDogs, 
     likeDog, 
     passDog, 
-    currentDogIndex, 
-    setCurrentDogIndex,
     isLoadingDogs
   } = usePawsConnect();
   
@@ -24,23 +21,22 @@ export const SwipeInterface = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [animationDirection, setAnimationDirection] = useState<'left' | 'right' | null>(null);
 
-  const handleNextCard = useCallback(() => {
-    setAnimationDirection(null); 
-    if (currentDogIndex < dogsToSwipe.length -1) {
-        setCurrentDogIndex(prevIndex => prevIndex + 1);
-    }
-  }, [currentDogIndex, dogsToSwipe.length, setCurrentDogIndex]);
-
   const handleLike = (dogId: string) => {
+    if (animationDirection) return; // Prevent multiple swipes while one is animating
     setAnimationDirection('right');
-    likeDog(dogId);
-    setTimeout(handleNextCard, 300); 
+    setTimeout(() => {
+      likeDog(dogId);
+      setAnimationDirection(null);
+    }, 500); // Match animation duration
   };
 
   const handlePass = (dogId: string) => {
+    if (animationDirection) return; // Prevent multiple swipes while one is animating
     setAnimationDirection('left');
-    passDog(dogId);
-    setTimeout(handleNextCard, 300); 
+    setTimeout(() => {
+      passDog(dogId);
+      setAnimationDirection(null);
+    }, 500); // Match animation duration
   };
 
   const handleShowDetails = (dog: Dog) => {
@@ -63,7 +59,7 @@ export const SwipeInterface = () => {
     );
   }
   
-  if (dogsToSwipe.length === 0 || currentDogIndex >= dogsToSwipe.length) {
+  if (dogsToSwipe.length === 0) {
      return (
       <div className="flex flex-col items-center justify-center h-[70vh] text-center">
         <h2 className="text-2xl font-headline mb-4">目前沒有更多狗狗了！</h2>
@@ -73,8 +69,8 @@ export const SwipeInterface = () => {
     );
   }
 
-  const currentDisplayDog = dogsToSwipe[currentDogIndex];
-  const nextDisplayDog = dogsToSwipe[currentDogIndex + 1];
+  const currentDisplayDog = dogsToSwipe[0];
+  const nextDisplayDog = dogsToSwipe[1];
 
   const getAnimationClass = () => {
     if (animationDirection === 'left') return 'animate-card-swipe-out-left';

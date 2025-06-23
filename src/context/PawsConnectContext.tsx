@@ -17,8 +17,6 @@ interface PawsConnectContextType {
   likeDog: (dogId: string) => Promise<void>;
   passDog: (dogId: string) => void;
   getDogById: (dogId: string) => Dog | undefined;
-  currentDogIndex: number;
-  setCurrentDogIndex: React.Dispatch<React.SetStateAction<number>>;
   isLoadingDogs: boolean;
 
   user: SupabaseUser | null;
@@ -83,7 +81,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
   const [dogsToSwipe, setDogsToSwipe] = useState<Dog[]>([]);
   const [likedDogs, setLikedDogs] = useState<Dog[]>([]);
   const [seenDogIds, setSeenDogIds] = useState<Set<string>>(new Set());
-  const [currentDogIndex, setCurrentDogIndex] = useState(0);
   const [isLoadingDogs, setIsLoadingDogs] = useState(true);
 
   const [user, setUser] = useState<SupabaseUser | null>(null);
@@ -124,7 +121,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         setProfile(null);
         setLikedDogs([]);
         setSeenDogIds(new Set());
-        setCurrentDogIndex(0);
       }
       setIsLoadingAuth(false);
     });
@@ -247,13 +243,7 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
       !seenDogIds.has(dog.id) 
     );
     setDogsToSwipe(dogsForSwiping);
-    if (currentDogIndex >= dogsForSwiping.length && dogsForSwiping.length > 0) {
-        setCurrentDogIndex(0);
-    } else if (dogsForSwiping.length === 0) {
-        setCurrentDogIndex(0);
-    }
-
-  }, [masterDogList, likedDogs, seenDogIds, isLoadingDogs, currentDogIndex]);
+  }, [masterDogList, likedDogs, seenDogIds, isLoadingDogs]);
 
 
   const likeDog = async (dogId: string) => {
@@ -265,7 +255,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
     const dog = masterDogList.find(d => d.id === dogId);
     if (!dog) return;
 
-    // Optimistic UI update
     if (!likedDogs.find(d => d.id === dogId)) {
       setLikedDogs(prevLikedDogs => [...prevLikedDogs, dog]);
     }
@@ -278,14 +267,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
       });
 
       if (insertError) {
-        // Revert local state change as the Supabase operation failed
-        setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
-        // setSeenDogIds(prevSeenIds => { // Optionally revert seenDogIds if like fails, though usually not necessary
-        //   const newSeenIds = new Set(prevSeenIds);
-        //   newSeenIds.delete(dogId);
-        //   return newSeenIds;
-        // });
-
         const isErrorAnEmptyObject = typeof insertError === 'object' && insertError !== null && Object.keys(insertError).length === 0;
 
         if (isErrorAnEmptyObject) {
@@ -299,22 +280,20 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
             "原始錯誤物件:", insertError
           );
         } else {
-          // Log the specific error returned by Supabase
           console.error(
             "儲存按讚記錄至 Supabase 時發生錯誤。這可能是 RLS 政策問題、資料庫限制 (例如外鍵約束) 或其他資料庫錯誤。\n" +
             "【建議檢查】: 'user_dog_likes' 資料表的 RLS INSERT 政策，以及 Supabase 資料庫日誌。\n",
             "Supabase 錯誤詳情:", insertError
           );
         }
-        return; // Exit the function as the like operation failed
+        setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
+        return; 
       }
-      // If no error, the like was successful in Supabase and local state is already updated.
-    } catch (catchError: any) { // Catch any other unexpected JavaScript errors
+    } catch (catchError: any) { 
       console.error(
         "儲存按讚記錄時發生未預期的 JavaScript 錯誤 (非 Supabase 直接回傳的錯誤)。\n",
         "錯誤詳情:", catchError
       );
-      // Revert local state change
       setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
     }
   };
@@ -386,16 +365,12 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
       setIsLoadingAuth(false);
       return { error: error.message || '登出時發生錯誤。' };
     }
-    // Reset user-specific states, keep masterDogList if it's global data
     setUser(null);
     setSession(null);
     setProfile(null);
     setLikedDogs([]);
-    setSeenDogIds(new Set()); // Reset seen dogs as they are user-specific
-    setCurrentDogIndex(0); 
-    // Re-filter dogsToSwipe based on the now non-existent user's likes/seen
-    // This will effectively show all dogs from masterDogList again if masterDogList is populated
-    const dogsForSwiping = masterDogList.filter(dog => !new Set().has(dog.id)); // No liked, no seen
+    setSeenDogIds(new Set()); 
+    const dogsForSwiping = masterDogList.filter(dog => !new Set().has(dog.id));
     setDogsToSwipe(dogsForSwiping);
 
     setIsLoadingAuth(false); 
@@ -455,8 +430,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         likeDog, 
         passDog, 
         getDogById,
-        currentDogIndex,
-        setCurrentDogIndex,
         isLoadingDogs,
         user,
         session,
@@ -480,5 +453,3 @@ export const usePawsConnect = () => {
   }
   return context;
 };
-
-    
