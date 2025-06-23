@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from 'react';
@@ -64,7 +63,7 @@ export const AuthForm = () => {
         const { email, password } = data as LoginFormValues;
         await login(email, password);
         toast({ title: '登入成功', description: "歡迎回來！" });
-        router.push('/profile');
+        router.push('/');
       } else {
         const { email, password, role, fullName } = data as SignupFormValues;
         await signUp(email, password, role, fullName);

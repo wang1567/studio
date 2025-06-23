@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -21,7 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 export const Navbar = () => {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, session, profile, logout, isLoadingAuth } = usePawsConnect();
+  const { user, profile, logout, isLoadingAuth } = usePawsConnect();
   const { theme, toggleTheme } = useTheme(); // Use the theme context
 
   const navItems = [
@@ -53,7 +52,7 @@ export const Navbar = () => {
         </Link>
         <div className="flex items-center gap-1 sm:gap-2"> {/* Reduced gap slightly */}
           {navItems.map((item) => {
-            if (item.requiresAuth && !session && !isLoadingAuth) return null;
+            if (item.requiresAuth && !user) return null;
             return (
               <Link key={item.href} href={item.href}>
                 <Button
@@ -85,7 +84,7 @@ export const Navbar = () => {
             <div className="h-10 w-20 flex items-center justify-center">
                <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
             </div>
-          ) : session && profile ? ( 
+          ) : user && profile ? ( 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
@@ -117,15 +116,7 @@ export const Navbar = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Link href="/auth">
-              <Button variant="ghost" className={cn(
-                "flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 h-auto sm:h-10",
-                 pathname === "/auth" ? "text-primary font-semibold" : "text-foreground/70 hover:text-primary"
-              )}>
-                <LogIn className="h-5 w-5" />
-                <span className="text-xs sm:text-sm">登入</span>
-              </Button>
-            </Link>
+            null
           )}
         </div>
       </nav>

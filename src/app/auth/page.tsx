@@ -1,42 +1,20 @@
-
 "use client";
 
-import { AuthForm } from '@/components/auth/AuthForm';
-import { usePawsConnect } from '@/context/PawsConnectContext';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
+import { PawPrint } from 'lucide-react';
 
-export default function AuthPage() {
-  const { user, isLoadingAuth } = usePawsConnect();
+export default function AuthRedirectPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoadingAuth && user) {
-      router.replace('/profile'); 
-    }
-  }, [user, isLoadingAuth, router]);
+    router.replace('/');
+  }, [router]);
 
-  if (isLoadingAuth) {
-    return (
-      <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
-        <p>載入中...</p>
-      </div>
-    );
-  }
-
-  if (user) {
-    return (
-      <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
-        <p>您已登入。正在重定向...</p>
-      </div>
-    );
-  }
-  
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)] py-12">
-      <div className="w-full max-w-md">
-        <AuthForm />
-      </div>
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
+      <PawPrint className="w-12 h-12 text-primary animate-spin" />
+      <p className="mt-4 text-lg text-muted-foreground">正在重新導向至登入頁面...</p>
     </div>
   );
 }

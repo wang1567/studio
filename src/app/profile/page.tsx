@@ -1,4 +1,3 @@
-
 "use client";
 
 import { usePawsConnect } from '@/context/PawsConnectContext';
@@ -56,7 +55,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!isLoadingAuth && !authUser) {
-      router.replace('/auth');
+      router.replace('/');
     }
   }, [authUser, isLoadingAuth, router]);
 
