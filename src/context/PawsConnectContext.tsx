@@ -91,53 +91,49 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
 
 
   useEffect(() => {
-    // onAuthStateChange fires immediately with the initial session state,
-    // so we don't need a separate getInitialSession() call.
-    // This single listener handles initial load, login, logout, and token refresh.
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session);
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        try {
+          setSession(session);
+          const currentUser = session?.user ?? null;
+          setUser(currentUser);
 
-      if (currentUser) {
-        // If there's a user, fetch their profile.
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', currentUser.id)
-          .single<DbProfile>();
+          if (currentUser) {
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', currentUser.id)
+              .single<DbProfile>();
 
-        if (profileError && profileError.code !== 'PGRST116') { // PGRST116 means no rows found
-          console.error('讀取個人資料時發生錯誤:', profileError);
-          setProfile(null);
-        } else if (profileData) {
-          setProfile({
-            id: profileData.id,
-            role: profileData.role as UserRole,
-            fullName: profileData.full_name,
-            avatarUrl: profileData.avatar_url,
-            updatedAt: profileData.updated_at,
-          });
-        } else {
-          // A user exists in auth, but not in our profiles table.
-          // This can happen if profile creation fails after signup.
-          // We'll set profile to null and log a warning.
-          console.warn(`User ${currentUser.id} exists in auth but has no profile.`);
-          setProfile(null);
+            if (profileError && profileError.code !== 'PGRST116') {
+              console.error('讀取個人資料時發生錯誤:', profileError);
+              setProfile(null);
+            } else if (profileData) {
+              setProfile({
+                id: profileData.id,
+                role: profileData.role as UserRole,
+                fullName: profileData.full_name,
+                avatarUrl: profileData.avatar_url,
+                updatedAt: profileData.updated_at,
+              });
+            } else {
+              console.warn(`User ${currentUser.id} exists in auth but has no profile.`);
+              setProfile(null);
+            }
+          } else {
+            setProfile(null);
+            setLikedDogs([]);
+            setSeenDogIds(new Set());
+          }
+        } catch (e) {
+          console.error("處理身份驗證狀態變更時發生未預期的錯誤:", e);
+        } finally {
+          setIsLoadingAuth(false);
         }
-      } else {
-        // User is logged out, clear profile and user-specific data.
-        setProfile(null);
-        setLikedDogs([]);
-        setSeenDogIds(new Set());
       }
-      
-      // We are done checking auth, set loading to false.
-      setIsLoadingAuth(false);
-    });
+    );
 
     return () => {
-      // Cleanup the listener when the component unmounts.
       authListener.subscription.unsubscribe();
     };
   }, []);
@@ -152,7 +148,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
         .select('*');
         
       if (dogsError) {
-        // Check for the specific "empty error" case which points to RLS issues
         if (typeof dogsError === 'object' && dogsError !== null && Object.keys(dogsError).length === 0) {
            console.error(
             `Error fetching dogs from Supabase view '${sourceToQuery}': Received an EMPTY error object. This STRONGLY indicates Row Level Security (RLS) policies or table/view permission issues.\n` +
@@ -213,10 +208,11 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
 
 
   useEffect(() => {
-    if (!isLoadingAuth && !isLoadingDogs) {
-         loadInitialDogData();
+    // Once authentication state is resolved, load the initial dog data.
+    if (!isLoadingAuth) {
+      loadInitialDogData();
     }
-  }, [user, isLoadingAuth, isLoadingDogs, loadInitialDogData]);
+  }, [isLoadingAuth, loadInitialDogData]);
 
 
   useEffect(() => {
@@ -295,10 +291,8 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
     setIsLoadingAuth(true);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     
-    // The onAuthStateChange listener will handle setting user/profile and setting isLoadingAuth to false.
-    // We just return the result here.
     if (error) {
-      setIsLoadingAuth(false); // Set loading to false on explicit error
+      setIsLoadingAuth(false);
       return { session: null, error: error.message || '登入失敗。請檢查您的帳號密碼。' };
     }
     return { session: data.session, error: null };
@@ -306,7 +300,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
 
   const signUp = async (email: string, password: string, role: UserRole, fullName?: string | null): Promise<{ user: SupabaseUser | null; error: string | null }> => {
     setIsLoadingAuth(true);
-    // First, sign up the user in Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
@@ -321,7 +314,6 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
       return { user: null, error: '註冊成功，但未取得使用者資訊。' };
     }
     
-    // If auth signup is successful, create the corresponding profile
     const { error: profileError } = await supabase.from('profiles').insert({
       id: authData.user.id,
       role,
@@ -332,21 +324,14 @@ export const PawsConnectProvider = ({ children }: { children: ReactNode }) => {
 
     if (profileError) {
       console.error('建立個人資料時發生錯誤:', profileError);
-      // Even if profile creation fails, the user is already created in `auth.users`.
-      // The onAuthStateChange listener will still fire and handle the new user,
-      // but their profile will be null.
       setIsLoadingAuth(false);
       return { user: authData.user, error: '註冊成功，但建立個人資料失敗: ' + profileError.message };
     }
     
-    // The onAuthStateChange listener will automatically pick up the new user and their profile.
-    // We don't need to manually set state here. It will also set isLoadingAuth to false.
     return { user: authData.user, error: null };
   };
 
   const logout = async (): Promise<{ error: string | null }> => {
-    // The onAuthStateChange listener will handle clearing user/profile/session state
-    // and setting isLoadingAuth.
     const { error } = await supabase.auth.signOut();
     if (error) {
       return { error: error.message || '登出時發生錯誤。' };
