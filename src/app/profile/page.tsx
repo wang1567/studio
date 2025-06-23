@@ -201,8 +201,10 @@ export default function ProfilePage() {
                     <Heart className="mr-2 h-4 w-4 text-primary" /> 查看我的配對
                   </Link>
                 </Button>
-                <Button variant="outline" className="w-full justify-start" disabled>
-                  <Settings className="mr-2 h-4 w-4 text-primary" /> 帳戶設定 (即將推出)
+                <Button variant="outline" className="w-full justify-start" asChild>
+                  <Link href="/profile/settings">
+                    <Settings className="mr-2 h-4 w-4 text-primary" /> 帳戶設定
+                  </Link>
                 </Button>
                 <Button variant="destructive" className="w-full justify-start" onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" /> 登出
