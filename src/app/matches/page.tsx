@@ -14,11 +14,13 @@ export default function MatchesPage() {
   const { likedDogs, getDogById } = usePawsConnect();
   const [selectedDogDetails, setSelectedDogDetails] = useState<Dog | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [initialModalTab, setInitialModalTab] = useState<'details' | 'live'>('details');
 
-  const handleShowDetails = (dogId: string) => {
+  const handleShowDetails = (dogId: string, tab: 'details' | 'live' = 'details') => {
     const dog = getDogById(dogId);
     if (dog) {
       setSelectedDogDetails(dog);
+      setInitialModalTab(tab);
       setIsModalOpen(true);
     }
   };
@@ -63,26 +65,20 @@ export default function MatchesPage() {
               <p className="mt-2 text-sm line-clamp-2">{dog.description}</p>
             </CardContent>
             <CardFooter className="p-4 border-t grid grid-cols-2 gap-2">
-              <Button variant="outline" onClick={() => handleShowDetails(dog.id)} className="w-full">
+              <Button variant="outline" onClick={() => handleShowDetails(dog.id, 'details')} className="w-full">
                 <Info className="mr-2 h-4 w-4" /> 詳細資料
               </Button>
-              {dog.liveStreamUrl ? (
-                <Button 
-                  onClick={() => handleShowDetails(dog.id)}
-                  className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
-                >
-                  <Video className="mr-2 h-4 w-4" /> 即時影像
-                </Button>
-              ) : (
-                 <Button variant="secondary" disabled className="w-full">
-                  <Video className="mr-2 h-4 w-4" /> 無直播
-                </Button>
-              )}
+              <Button 
+                onClick={() => handleShowDetails(dog.id, 'live')}
+                className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
+              >
+                <Video className="mr-2 h-4 w-4" /> 即時影像
+              </Button>
             </CardFooter>
           </Card>
         ))}
       </div>
-      <DogDetailsModal dog={selectedDogDetails} isOpen={isModalOpen} onClose={handleCloseModal} />
+      <DogDetailsModal dog={selectedDogDetails} isOpen={isModalOpen} onClose={handleCloseModal} initialTab={initialModalTab} />
     </div>
   );
 }
