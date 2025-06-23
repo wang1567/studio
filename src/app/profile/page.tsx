@@ -34,7 +34,6 @@ type ProfileUpdateFormValues = z.infer<typeof profileUpdateSchema>;
 export default function ProfilePage() {
   const { 
     user: authUser, 
-    session, 
     profile, 
     isLoadingAuth, 
     likedDogs, 
@@ -56,10 +55,10 @@ export default function ProfilePage() {
   });
 
   useEffect(() => {
-    if (!isLoadingAuth && !session) {
+    if (!isLoadingAuth && !authUser) {
       router.replace('/auth');
     }
-  }, [session, isLoadingAuth, router]);
+  }, [authUser, isLoadingAuth, router]);
 
   useEffect(() => {
     if (authUser?.created_at) {
@@ -115,20 +114,11 @@ export default function ProfilePage() {
     }
   };
 
-  if (isLoadingAuth || (!session && !profile)) {
+  if (isLoadingAuth || !authUser || !profile) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
         <PawPrint className="w-12 h-12 text-primary animate-spin" />
         <p className="mt-4 text-lg text-muted-foreground">載入個人資料...</p>
-      </div>
-    );
-  }
-
-  if (!session || !profile) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
-        <p className="text-lg text-muted-foreground">請登入以查看您的個人資料。</p>
-        <Button onClick={() => router.push('/auth')} className="mt-4">登入</Button>
       </div>
     );
   }

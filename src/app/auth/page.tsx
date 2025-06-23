@@ -7,14 +7,14 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
 export default function AuthPage() {
-  const { session, isLoadingAuth } = usePawsConnect();
+  const { user, isLoadingAuth } = usePawsConnect();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoadingAuth && session) {
+    if (!isLoadingAuth && user) {
       router.replace('/profile'); 
     }
-  }, [session, isLoadingAuth, router]);
+  }, [user, isLoadingAuth, router]);
 
   if (isLoadingAuth) {
     return (
@@ -24,7 +24,7 @@ export default function AuthPage() {
     );
   }
 
-  if (session) {
+  if (user) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-200px)]">
         <p>您已登入。正在重定向...</p>
