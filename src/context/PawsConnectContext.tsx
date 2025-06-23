@@ -6,6 +6,7 @@ import React, from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import type { User as SupabaseUser, Session as SupabaseSession, PostgrestError } from '@supabase/supabase-js';
 import type { Database } from '@/types/supabase';
+import { toast } from '@/hooks/use-toast';
 type DbDog = Database['public']['Views']['dogs_for_adoption_view']['Row'];
 type DbProfile = Database['public']['Tables']['profiles']['Row'];
 
@@ -230,7 +231,11 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
   const likeDog = async (dogId: string) => {
     if (!user) {
-      alert("請先登入才能按讚狗狗！");
+      toast({
+        variant: "destructive",
+        title: "需要登入",
+        description: "請先登入才能按讚狗狗！",
+      });
       return;
     }
 
@@ -248,6 +253,10 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     });
     
     if (insertError) {
+      // Revert UI change on error
+      setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
+      
+      // Developer-facing error in console
       console.error(
         "儲存按讚記錄至 Supabase 時發生錯誤: 這很可能是 Row Level Security (RLS) 政策或資料表權限問題。\n\n" +
         "【請檢查您的 Supabase 設定】:\n" +
@@ -259,8 +268,13 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         insertError
       );
       
-      // Revert UI change on error
-      setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
+      // User-facing error toast
+      toast({
+        variant: "destructive",
+        title: "按讚失敗",
+        description: "無法儲存您的選擇。這通常是資料庫權限問題，您的按讚已被復原。",
+      });
+
       return;
     }
   };
