@@ -90,6 +90,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   const [isLoadingAuth, setIsLoadingAuth] = React.useState(true);
   const [isUpdatingProfile, setIsUpdatingProfile] = React.useState(false);
   const authCheckCompleted = useRef(false);
+  const { toast } = useToast();
 
 
   React.useEffect(() => {
