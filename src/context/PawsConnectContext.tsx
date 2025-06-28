@@ -2,7 +2,7 @@
 "use client";
 
 import type { Dog, Profile, UserRole, HealthRecord, FeedingSchedule, VaccinationRecord } from '@/types';
-import React, { useRef } from 'react';
+import React, from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import type { User as SupabaseUser, Session as SupabaseSession, PostgrestError } from '@supabase/supabase-js';
 import type { Database } from '@/types/supabase';
@@ -40,10 +40,13 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
   const photos = Array.isArray(dbViewDog.photos) ? dbViewDog.photos.filter((p): p is string => typeof p === 'string') : [];
   const personalityTraits = Array.isArray(dbViewDog.personality_traits) ? dbViewDog.personality_traits.filter((p): p is string => typeof p === 'string') : [];
   
-  // Safely access nested properties, providing defaults if parts of the JSON are null or undefined
   const healthRecordsData = (dbViewDog.health_records as unknown) as HealthRecord | null;
   const feedingScheduleData = (dbViewDog.feeding_schedule as unknown) as FeedingSchedule | null;
   const vaccinationRecordsData = (dbViewDog.vaccination_records ? (Array.isArray(dbViewDog.vaccination_records) ? dbViewDog.vaccination_records : []) : []) as VaccinationRecord[];
+
+  const meaningfulConditions = healthRecordsData?.conditions?.filter(
+    c => c && c.trim() && c.trim().toLowerCase() !== 'none' && c.trim() !== '無'
+  ) || [];
 
   return {
     id: dbViewDog.id,
@@ -55,7 +58,7 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
     description: dbViewDog.description || '暫無描述。',
     healthRecords: {
       lastCheckup: healthRecordsData?.lastCheckup || defaultHealthRecord.lastCheckup,
-      conditions: healthRecordsData?.conditions && healthRecordsData.conditions.length > 0 ? healthRecordsData.conditions : [],
+      conditions: meaningfulConditions,
       notes: healthRecordsData?.notes || defaultHealthRecord.notes,
     },
     feedingSchedule: {
@@ -89,7 +92,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   const [profile, setProfile] = React.useState<Profile | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = React.useState(true);
   const [isUpdatingProfile, setIsUpdatingProfile] = React.useState(false);
-  const authCheckCompleted = useRef(false);
+  const authCheckCompleted = React.useRef(false);
   const { toast } = useToast();
 
 
@@ -120,7 +123,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
                 updatedAt: profileData.updated_at,
               });
             } else {
-              console.warn(`User ${currentUser.id} exists in auth but has no profile.`);
               setProfile(null);
             }
           } else {
@@ -131,7 +133,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         } catch (e) {
           console.error("處理身份驗證狀態變更時發生未預期的錯誤:", e);
         } finally {
-          if (!authCheckCompleted.current) {
+           if (!authCheckCompleted.current) {
             setIsLoadingAuth(false);
             authCheckCompleted.current = true;
           }
@@ -154,20 +156,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         .select('*');
         
       if (dogsError) {
-        if (typeof dogsError === 'object' && dogsError !== null && Object.keys(dogsError).length === 0) {
-           console.error(
-            `Error fetching dogs from Supabase view '${sourceToQuery}': Received an EMPTY error object. This STRONGLY indicates Row Level Security (RLS) policies or table/view permission issues.\n` +
-            `Current dogsData (might be undefined/null/empty array, which is unusual with an empty error): ${JSON.stringify(dogsData)}\n\n` +
-            "【請檢查您的 Supabase 設定】:\n" +
-            `1. RLS policies on the VIEW '${sourceToQuery}'. Ensure the querying role ('anon' or 'authenticated') has SELECT permissions.\n` +
-            "2. RLS policies on all UNDERLYING TABLES used by the view (e.g., 'pets', 'health_records', etc.). The querying role needs SELECT access on these too.\n" +
-            "3. Data existence: Verify that data exists in the 'pets' table and related tables that would match the view's criteria and RLS.\n" +
-            "4. Supabase Logs: Check the logs in your Supabase project dashboard (Database > Logs or Query Performance) for more detailed error messages from Postgres related to permission denials.\n\n" +
-            "原始錯誤物件:", dogsError
-          );
-        } else {
           console.error(`Error fetching dogs from Supabase view '${sourceToQuery}':`, dogsError);
-        }
         setMasterDogList([]);
         setLikedDogs([]);
       } else if (dogsData && dogsData.length > 0) {
@@ -193,12 +182,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         }
       } else {
          console.warn(
-            `Warning: Fetched no dogs from Supabase view '${sourceToQuery}' (data is null, undefined, or empty array) and no error was reported by Supabase. This might be due to:\n` +
-            "1. Row Level Security (RLS) policies silently filtering all records from the view or its underlying tables.\n" +
-            "2. The view or underlying tables being genuinely empty or having no records matching the view's criteria and RLS.\n\n" +
-            "【請檢查您的 Supabase 設定】:\n" +
-            `* RLS policies on the VIEW '${sourceToQuery}' and its UNDERLYING TABLES.\n` +
-            "* Data existence in 'pets' and related tables that satisfies RLS conditions.\n"
+            `Warning: Fetched no dogs from Supabase view '${sourceToQuery}' and no error was reported. This could be due to RLS policies or an empty view/table.`
         );
         setMasterDogList([]);
         setLikedDogs([]);
@@ -214,7 +198,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
 
   React.useEffect(() => {
-    // Once authentication state is resolved, load the initial dog data.
     if (!isLoadingAuth) {
       loadInitialDogData();
     }
@@ -273,11 +256,11 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         insertError
       );
       
-      // User-facing error toast
+      // User-facing error toast that directs the developer to the console
       toast({
         variant: "destructive",
-        title: "按讚失敗",
-        description: "無法儲存您的選擇。這通常是資料庫權限問題，您的按讚已被復原。",
+        title: "按讚失敗 (資料庫權限)",
+        description: "無法儲存您的選擇。請檢查開發者主控台以取得 Supabase RLS 政策的除錯指引。",
       });
 
       return;
@@ -420,5 +403,3 @@ export const usePawsConnect = () => {
   }
   return context;
 };
-
-    
