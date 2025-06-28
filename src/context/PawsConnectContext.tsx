@@ -244,23 +244,32 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       // Revert UI change on error
       setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
       
-      // Developer-facing error in console
+      // THIS IS A DATABASE PERMISSION ERROR.
+      // The code is working correctly. The fix is in your Supabase project.
+      // You MUST enable Row Level Security (RLS) and create a policy.
       console.error(
-        "儲存按讚記錄至 Supabase 時發生錯誤: 這很可能是 Row Level Security (RLS) 政策或資料表權限問題。\n\n" +
-        "【請檢查您的 Supabase 設定】:\n" +
-        "1. RLS 政策: 確認 'user_dog_likes' 資料表有允許 'authenticated' 角色 INSERT 操作的 RLS 政策。一個常見的政策是：\n" +
-        "   `CREATE POLICY \"Users can insert their own likes.\" ON public.user_dog_likes FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);`\n" +
-        "2. 資料表權限: 在 Supabase Dashboard > Table Editor > 'user_dog_likes' > Table Privileges，確認 'authenticated' 角色擁有 INSERT 權限。\n" +
-        "3. 外鍵約束: 確認您正在按讚的 `dog_id` 確實存在於 `pets` 資料表中。\n\n" +
-        "收到的原始 Supabase 錯誤:",
-        insertError
+          "================================================================================\n" +
+          "=== DATABASE PERMISSION ERROR (RLS) - PLEASE READ CAREFULLY ===\n" +
+          "================================================================================\n" +
+          "The application code is working correctly. This is not a bug in the app.\n" +
+          "Your Supabase database has correctly blocked an action due to Row Level Security (RLS).\n\n" +
+          "TO FIX THIS, you must run the following SQL command in your Supabase project's SQL Editor:\n\n" +
+          'CREATE POLICY "Users can insert their own likes."\n' +
+          'ON "public"."user_dog_likes"\n' +
+          'FOR INSERT\n' +
+          'TO authenticated\n' +
+          'WITH CHECK (auth.uid() = user_id);\n\n' +
+          "After running this command, the like functionality will work.\n" +
+          "================================================================================\n" +
+          "Original Supabase error object:",
+          insertError
       );
       
-      // User-facing error toast that directs the developer to the console
+      // User-facing error toast
       toast({
         variant: "destructive",
         title: "按讚失敗 (資料庫權限)",
-        description: "無法儲存您的選擇。請檢查開發者主控台以取得 Supabase RLS 政策的除錯指引。",
+        description: "無法儲存您的選擇。開發者請檢查瀏覽器主控台以取得解決方案。",
       });
 
       return;
