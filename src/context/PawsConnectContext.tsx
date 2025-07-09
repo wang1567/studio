@@ -265,11 +265,12 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
           insertError
       );
       
-      // User-facing error toast
+      // User-facing error toast with the direct solution
       toast({
         variant: "destructive",
-        title: "按讚失敗 (資料庫權限)",
-        description: "無法儲存您的選擇。開發者請檢查瀏覽器主控台以取得解決方案。",
+        title: "按讚失敗：需要資料庫設定",
+        description: "您的資料庫缺少一項安全規則 (RLS)。請在 Supabase SQL Editor 中執行 'CREATE POLICY \"Users can insert their own likes.\" ON public.user_dog_likes FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);' 來解決此問題。",
+        duration: 20000 // Increase duration to allow copying the text
       });
 
       return;
@@ -412,5 +413,7 @@ export const usePawsConnect = () => {
   }
   return context;
 };
+
+    
 
     
