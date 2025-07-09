@@ -182,7 +182,15 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         }
       } else {
          console.warn(
-            `Warning: Fetched no dogs from Supabase view '${sourceToQuery}' and no error was reported. This could be due to RLS policies or an empty view/table.`
+            "================================================================================\n" +
+            "=== POTENTIAL DATABASE PERMISSION ISSUE (RLS) - PLEASE READ CAREFULLY ===\n" +
+            "================================================================================\n" +
+            `Warning: The query to fetch dogs from the '${sourceToQuery}' view succeeded but returned 0 dogs. This is often not an error in the application code, but a sign of a Row Level Security (RLS) policy on the underlying 'pets' table.\n\n` +
+            "TO FIX THIS, please check the RLS policies on your 'pets' table in the Supabase dashboard.\n\n" +
+            "If you want all users to be able to see all pets, you need a policy like this:\n" +
+            'CREATE POLICY "All users can view all pets." ON "public"."pets" FOR SELECT USING (true);\n\n' +
+            "Without a permissive SELECT policy, each user might only be able to see the pets they added themselves, resulting in an empty list for other users.\n" +
+            "================================================================================"
         );
         setMasterDogList([]);
         setLikedDogs([]);
