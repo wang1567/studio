@@ -252,39 +252,12 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       // Revert UI change on error
       setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
       
-      console.error(
-          "================================================================================\n" +
-          "=== DATABASE PERMISSION ERROR (RLS) - PLEASE READ CAREFULLY ===\n" +
-          "================================================================================\n" +
-          "The application code is working correctly. This is not a bug in the app.\n" +
-          "Your Supabase database has correctly blocked an action due to Row Level Security (RLS).\n\n" +
-          "TO FIX THIS, you must run the following SQL command in your Supabase project's SQL Editor:\n\n" +
-          'CREATE POLICY "Users can insert their own likes."\n' +
-          'ON "public"."user_dog_likes"\n' +
-          'FOR INSERT\n' +
-          'TO authenticated\n' +
-          'WITH CHECK (auth.uid() = user_id);\n\n' +
-          "After running this command, the like functionality will work.\n" +
-          "================================================================================\n" +
-          "Original Supabase error object:",
-          insertError
-      );
+      console.error("Error saving like to Supabase:", insertError);
 
-      const toastDescription = (
-        <div className="text-xs space-y-2">
-          <p className="font-semibold">這不是程式錯誤，而是您的資料庫需要一個安全規則。</p>
-          <p>請在您的 Supabase 專案的 SQL 編輯器中執行以下指令來解決此問題：</p>
-          <pre className="mt-1 p-2 bg-black/80 text-white rounded-md text-[10px] leading-tight font-mono whitespace-pre-wrap break-words">
-            {`CREATE POLICY "Users can insert their own likes."\nON "public"."user_dog_likes"\nFOR INSERT\nTO authenticated\nWITH CHECK (auth.uid() = user_id);`}
-          </pre>
-        </div>
-      );
-      
       toast({
         variant: "destructive",
-        title: "按讚失敗：需要設定資料庫權限",
-        description: toastDescription,
-        duration: 30000 
+        title: "按讚失敗",
+        description: "無法儲存您的選擇。請稍後再試。",
       });
 
       return;
