@@ -92,6 +92,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const [isLiking, setIsLiking] = useState<Set<string>>(new Set()); // Lock state for liking
   const authCheckCompleted = useRef(false);
   const { toast } = useToast();
 
@@ -187,7 +188,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
             "================================================================================\n" +
             `Warning: The query to fetch dogs from the '${sourceToQuery}' view succeeded but returned 0 dogs. This is often not an error in the application code, but a sign of a Row Level Security (RLS) policy on the underlying 'pets' table.\n\n` +
             "TO FIX THIS, please check the RLS policies on your 'pets' table in the Supabase dashboard.\n\n" +
-            "If you want all users to be able to see all pets, you need a policy like this:\n" +
+            'If you want all users to be able to see all pets, you need a policy like this:\n' +
             'CREATE POLICY "All users can view all pets." ON "public"."pets" FOR SELECT USING (true);\n\n' +
             "Without a permissive SELECT policy, each user might only be able to see the pets they added themselves, resulting in an empty list for other users.\n" +
             "================================================================================"
@@ -226,6 +227,12 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
 
   const likeDog = async (dogId: string) => {
+    // Guard for concurrent requests
+    if (isLiking.has(dogId)) {
+      console.warn(`Like operation for dog ${dogId} is already in progress.`);
+      return;
+    }
+
     if (!user) {
       toast({
         variant: "destructive",
@@ -244,33 +251,53 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     const dog = masterDogList.find(d => d.id === dogId);
     if (!dog) return;
 
-    // Optimistic UI update
-    setLikedDogs(prevLikedDogs => [...prevLikedDogs, dog]);
-    setSeenDogIds(prevSeenIds => new Set(prevSeenIds).add(dogId));
+    try {
+      // Lock this dog's ID
+      setIsLiking(prev => new Set(prev).add(dogId));
 
-    const { error: insertError } = await supabase.from('user_dog_likes').insert({
-      user_id: user.id,
-      dog_id: dogId,
-    });
-    
-    if (insertError) {
-      // Revert UI change on error
-      setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
-      
-      console.error("Error saving like to Supabase:", insertError);
+      // Optimistic UI update
+      setLikedDogs(prevLikedDogs => [...prevLikedDogs, dog]);
+      setSeenDogIds(prevSeenIds => new Set(prevSeenIds).add(dogId));
 
-      toast({
-        variant: "destructive",
-        title: "按讚失敗",
-        description: "無法儲存您的選擇。請稍後再試。",
+      const { error: insertError } = await supabase.from('user_dog_likes').insert({
+        user_id: user.id,
+        dog_id: dogId,
       });
+      
+      if (insertError) {
+        // Revert UI change on error
+        setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
+        
+        console.error("Error saving like to Supabase:", insertError);
 
-      return;
+        toast({
+          variant: "destructive",
+          title: "按讚失敗",
+          description: "無法儲存您的選擇。請稍後再試。",
+        });
+        return;
+      }
+    } catch (error) {
+        // Revert UI on any unexpected error too
+        setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
+        console.error("An unexpected error occurred during the like operation:", error);
+        toast({
+          variant: "destructive",
+          title: "發生未預期的錯誤",
+          description: "按讚時發生問題，您的操作已被復原。",
+        });
+    } finally {
+      // Unlock this dog's ID
+      setIsLiking(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(dogId);
+        return newSet;
+      });
     }
   };
 
   const passDog = (dogId: string) => {
-    setSeenDogIds(prevSeenDogIds => new Set(prevSeenDogIds).add(dogId));
+    setSeenDogIds(prevSeenDogIds => new Set(prevSeenIds).add(dogId));
   };
   
   const getDogById = (dogId: string): Dog | undefined => {
