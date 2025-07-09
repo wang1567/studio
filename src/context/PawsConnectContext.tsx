@@ -252,9 +252,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       // Revert UI change on error
       setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
       
-      // THIS IS A DATABASE PERMISSION ERROR.
-      // The code is working correctly. The fix is in your Supabase project.
-      // You MUST enable Row Level Security (RLS) and create a policy.
       console.error(
           "================================================================================\n" +
           "=== DATABASE PERMISSION ERROR (RLS) - PLEASE READ CAREFULLY ===\n" +
@@ -272,13 +269,22 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
           "Original Supabase error object:",
           insertError
       );
+
+      const toastDescription = (
+        <div className="text-xs space-y-2">
+          <p className="font-semibold">這不是程式錯誤，而是您的資料庫需要一個安全規則。</p>
+          <p>請在您的 Supabase 專案的 SQL 編輯器中執行以下指令來解決此問題：</p>
+          <pre className="mt-1 p-2 bg-black/80 text-white rounded-md text-[10px] leading-tight font-mono whitespace-pre-wrap break-words">
+            {`CREATE POLICY "Users can insert their own likes."\nON "public"."user_dog_likes"\nFOR INSERT\nTO authenticated\nWITH CHECK (auth.uid() = user_id);`}
+          </pre>
+        </div>
+      );
       
-      // User-facing error toast with the direct solution
       toast({
         variant: "destructive",
-        title: "按讚失敗：需要資料庫設定",
-        description: "您的資料庫缺少一項安全規則 (RLS)。請在 Supabase SQL Editor 中執行 'CREATE POLICY \"Users can insert their own likes.\" ON public.user_dog_likes FOR INSERT TO authenticated WITH CHECK (auth.uid() = user_id);' 來解決此問題。",
-        duration: 20000 // Increase duration to allow copying the text
+        title: "按讚失敗：需要設定資料庫權限",
+        description: toastDescription,
+        duration: 30000 
       });
 
       return;
