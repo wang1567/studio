@@ -229,7 +229,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   const likeDog = async (dogId: string) => {
     // Guard for concurrent requests
     if (isLiking.has(dogId)) {
-      console.warn(`Like operation for dog ${dogId} is already in progress.`);
       return;
     }
 
@@ -244,7 +243,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
     // Guard: Prevent liking a dog that's already in the liked list.
     if (likedDogs.some(d => d.id === dogId)) {
-      console.warn(`Attempted to like a dog that is already liked: ${dogId}. Operation aborted.`);
       return;
     }
 
@@ -259,10 +257,12 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       setLikedDogs(prevLikedDogs => [...prevLikedDogs, dog]);
       setSeenDogIds(prevSeenIds => new Set(prevSeenIds).add(dogId));
 
-      const { error: insertError } = await supabase.from('user_dog_likes').insert({
-        user_id: user.id,
-        dog_id: dogId,
-      });
+      const { error: insertError } = await supabase
+        .from('user_dog_likes')
+        .upsert(
+            { user_id: user.id, dog_id: dogId },
+            { ignoreDuplicates: true }
+        );
       
       if (insertError) {
         // Revert UI change on error
@@ -273,7 +273,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         toast({
           variant: "destructive",
           title: "按讚失敗",
-          description: "無法儲存您的選擇。請稍後再試。",
+          description: "無法儲存您的選擇。請檢查您的網路連線或稍後再試。",
         });
         return;
       }
