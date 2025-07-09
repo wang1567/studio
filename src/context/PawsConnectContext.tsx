@@ -2,7 +2,7 @@
 "use client";
 
 import type { Dog, Profile, UserRole, HealthRecord, FeedingSchedule, VaccinationRecord } from '@/types';
-import React, from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import type { User as SupabaseUser, Session as SupabaseSession, PostgrestError } from '@supabase/supabase-js';
 import type { Database } from '@/types/supabase';
@@ -81,22 +81,22 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
 
 
 export const PawsConnectProvider = ({ children }: { children: React.ReactNode }) => {
-  const [masterDogList, setMasterDogList] = React.useState<Dog[]>([]);
-  const [dogsToSwipe, setDogsToSwipe] = React.useState<Dog[]>([]);
-  const [likedDogs, setLikedDogs] = React.useState<Dog[]>([]);
-  const [seenDogIds, setSeenDogIds] = React.useState<Set<string>>(new Set());
-  const [isLoadingDogs, setIsLoadingDogs] = React.useState(true);
+  const [masterDogList, setMasterDogList] = useState<Dog[]>([]);
+  const [dogsToSwipe, setDogsToSwipe] = useState<Dog[]>([]);
+  const [likedDogs, setLikedDogs] = useState<Dog[]>([]);
+  const [seenDogIds, setSeenDogIds] = useState<Set<string>>(new Set());
+  const [isLoadingDogs, setIsLoadingDogs] = useState(true);
 
-  const [user, setUser] = React.useState<SupabaseUser | null>(null);
-  const [session, setSession] = React.useState<SupabaseSession | null>(null);
-  const [profile, setProfile] = React.useState<Profile | null>(null);
-  const [isLoadingAuth, setIsLoadingAuth] = React.useState(true);
-  const [isUpdatingProfile, setIsUpdatingProfile] = React.useState(false);
-  const authCheckCompleted = React.useRef(false);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [session, setSession] = useState<SupabaseSession | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const authCheckCompleted = useRef(false);
   const { toast } = useToast();
 
 
-  React.useEffect(() => {
+  useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         try {
@@ -147,7 +147,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   }, []);
 
 
-  const loadInitialDogData = React.useCallback(async () => {
+  const loadInitialDogData = useCallback(async () => {
     const sourceToQuery = 'dogs_for_adoption_view'; 
     setIsLoadingDogs(true);
     try {
@@ -205,14 +205,14 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   }, [user]);
 
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isLoadingAuth) {
       loadInitialDogData();
     }
   }, [isLoadingAuth, loadInitialDogData]);
 
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isLoadingDogs || masterDogList.length === 0) {
       setDogsToSwipe([]);
       return;
@@ -235,12 +235,17 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       return;
     }
 
+    // Guard: Prevent liking a dog that's already in the liked list.
+    if (likedDogs.some(d => d.id === dogId)) {
+      console.warn(`Attempted to like a dog that is already liked: ${dogId}. Operation aborted.`);
+      return;
+    }
+
     const dog = masterDogList.find(d => d.id === dogId);
     if (!dog) return;
 
-    if (!likedDogs.find(d => d.id === dogId)) {
-      setLikedDogs(prevLikedDogs => [...prevLikedDogs, dog]);
-    }
+    // Optimistic UI update
+    setLikedDogs(prevLikedDogs => [...prevLikedDogs, dog]);
     setSeenDogIds(prevSeenIds => new Set(prevSeenIds).add(dogId));
 
     const { error: insertError } = await supabase.from('user_dog_likes').insert({
