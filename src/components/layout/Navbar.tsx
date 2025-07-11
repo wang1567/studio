@@ -36,14 +36,20 @@ export const Navbar = () => {
     router.push('/welcome');
   };
   
-  const getInitials = (name?: string | null) => {
-    if (!name) return '';
-    if (name.length <= 2) return name;
+  const getInitials = (name?: string | null): string => {
+    if (!name) {
+      return '';
+    }
+    // Added curly braces for robustness
+    if (name.length <= 2) {
+      return name.toUpperCase();
+    }
     const nameParts = name.split(' ');
     if (nameParts.length > 1) {
         return nameParts.map(n => n[0]).join('').toUpperCase();
     }
-    return name.substring(name.length - 2);
+    // Fallback for single word or CJK names
+    return name.substring(name.length - 2).toUpperCase();
   };
 
   return (
@@ -107,7 +113,7 @@ export const Navbar = () => {
                       <AvatarImage src={profile?.avatarUrl || undefined} alt={profile?.fullName || user?.email || '使用者'} data-ai-hint="person avatar" />
                       <AvatarFallback className="bg-primary/20 text-primary">
                          {getInitials(profile?.fullName) || <UserCircle2 size={20}/>}
-                      </Fallback>
+                      </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
