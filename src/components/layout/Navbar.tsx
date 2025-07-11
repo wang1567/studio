@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -24,13 +25,15 @@ export const Navbar = () => {
   const { theme, toggleTheme } = useTheme();
 
   const navItems = [
-    { href: '/', label: '滑卡配對', icon: <Dog className="h-5 w-5" />, requiresAuth: false },
+    { href: '/', label: '滑卡配對', icon: <Dog className="h-5 w-5" />, requiresAuth: true },
     { href: '/matches', label: '我的配對', icon: <Heart className="h-5 w-5" />, requiresAuth: true },
   ];
+  
+  const isWelcomePage = pathname === '/welcome';
 
   const handleLogout = async () => {
     await logout();
-    router.push('/');
+    router.push('/welcome');
   };
   
   const getInitials = (name?: string | null) => {
@@ -41,17 +44,17 @@ export const Navbar = () => {
         return nameParts.map(n => n[0]).join('').toUpperCase();
     }
     return name.substring(name.length - 2);
-  }
+  };
 
   return (
     <header className="bg-card shadow-md sticky top-0 z-50">
       <nav className="container mx-auto px-4 py-3 flex justify-between items-center">
-        <Link href="/" className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors">
+        <Link href={user ? "/" : "/welcome"} className="flex items-center gap-2 text-primary hover:text-primary/80 transition-colors">
           <Dog className="h-8 w-8" />
           <h1 className="text-2xl font-headline font-bold">PawsConnect</h1>
         </Link>
         <div className="flex items-center gap-1 sm:gap-2">
-          {navItems.map((item) => {
+          {!isWelcomePage && navItems.map((item) => {
             if (item.requiresAuth && !user) return null;
             return (
               <Link key={item.href} href={item.href}>
@@ -104,7 +107,7 @@ export const Navbar = () => {
                       <AvatarImage src={profile?.avatarUrl || undefined} alt={profile?.fullName || user?.email || '使用者'} data-ai-hint="person avatar" />
                       <AvatarFallback className="bg-primary/20 text-primary">
                          {getInitials(profile?.fullName) || <UserCircle2 size={20}/>}
-                      </AvatarFallback>
+                      </Fallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>

@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -80,13 +81,13 @@ export const AuthForm = () => {
   };
 
   return (
-    <Card className="w-full shadow-2xl">
+    <Card className="w-full shadow-2xl bg-card">
       <CardHeader className="text-center">
-        <CardTitle className="text-3xl font-headline text-primary">
-          {authMode === 'login' ? '歡迎回來！' : '建立帳戶'}
+        <CardTitle className="text-2xl font-headline text-primary">
+          {authMode === 'login' ? '歡迎回來！' : '加入我們'}
         </CardTitle>
         <CardDescription>
-          {authMode === 'login' ? '登入以繼續您的 PawsConnect 旅程。' : '加入 PawsConnect 來尋找或幫助毛茸茸的朋友。'}
+          {authMode === 'login' ? '登入以繼續您的 PawsConnect 旅程。' : '建立帳戶來尋找或幫助毛茸茸的朋友。'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6 p-6">
