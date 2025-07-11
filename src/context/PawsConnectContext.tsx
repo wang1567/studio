@@ -25,6 +25,10 @@ interface PawsConnectContextType {
   session: SupabaseSession | null;
   isLoadingAuth: boolean;
   isUpdatingProfile: boolean;
+  login: (email: string, password: string) => Promise<{ session: SupabaseSession | null; error: string | null }>;
+  signUp: (email: string, password: string, role: UserRole, fullName?: string | null) => Promise<{ user: SupabaseUser | null; error: string | null }>;
+  logout: () => Promise<{ error: string | null }>;
+  updateProfile: (updates: { fullName?: string | null; avatarUrl?: string | null }) => Promise<{ success: boolean; error?: string | null; updatedProfile?: Profile | null }>;
 }
 
 const PawsConnectContext = React.createContext<PawsConnectContextType | undefined>(undefined);
@@ -220,17 +224,13 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       setDogsToSwipe([]);
       return;
     }
-    const currentLikedIds = new Set(likedDogs.map(d => d.id));
-    const dogsForSwiping = masterDogList.filter(dog =>
-      !currentLikedIds.has(dog.id) &&
-      !seenDogIds.has(dog.id) 
-    );
-    setDogsToSwipe(dogsForSwiping);
-  }, [masterDogList, likedDogs, seenDogIds, isLoadingDogs]);
+    // Logic changed to always show all dogs from the master list for swiping.
+    setDogsToSwipe(masterDogList);
+  }, [masterDogList, isLoadingDogs]);
 
 
   const likeDog = async (dogId: string) => {
-    if (isLiking.has(dogId) || likedDogs.some(d => d.id === dogId)) {
+    if (isLiking.has(dogId)) {
       return;
     }
 
@@ -254,9 +254,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         .insert({ user_id: user.id, dog_id: dogId });
       
       if (insertError) {
-        // The most common error here is '23505' (unique_violation), which is okay.
-        // It means the user already liked this dog, maybe from another session.
-        // We will just ensure the UI is consistent.
         if (insertError.code !== '23505') {
             console.error("Error saving like to Supabase:", insertError);
             toast({
