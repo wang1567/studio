@@ -70,7 +70,7 @@ export default function AdoptionInfoPage() {
                 詳細領養流程
             </CardTitle>
             <CardDescription>完整的領養流程，幫助您順利完成領養程序。</CardDescription>
-        </Header>
+        </CardHeader>
         <CardContent>
           <Accordion type="single" collapsible className="w-full">
             <AccordionItem value="item-1">
