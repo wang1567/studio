@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { Dog, Heart, UserCircle, LogIn, LogOut, UserCircle2, Sun, Moon, Settings } from 'lucide-react'; // Added Settings
+import { Dog, Heart, UserCircle, LogIn, LogOut, UserCircle2, Sun, Moon, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -40,16 +40,15 @@ export const Navbar = () => {
     if (!name) {
       return '';
     }
-    // Added curly braces for robustness
     if (name.length <= 2) {
       return name.toUpperCase();
     }
     const nameParts = name.split(' ');
-    if (nameParts.length > 1) {
+    if (nameParts.length > 1 && nameParts.every(part => part.length > 0)) {
         return nameParts.map(n => n[0]).join('').toUpperCase();
     }
     // Fallback for single word or CJK names
-    return name.substring(name.length - 2).toUpperCase();
+    return name.length > 1 ? name.substring(name.length - 2).toUpperCase() : name.toUpperCase();
   };
 
   return (
@@ -94,57 +93,51 @@ export const Navbar = () => {
                <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
             </div>
           ) : user && profile ? ( 
-            <>
-              <Button
-                variant="ghost"
-                size="icon"
-                asChild
-                className="h-9 w-9 sm:h-10 sm:w-10 text-foreground/70 hover:text-primary focus-visible:ring-primary"
-                aria-label="帳戶設定"
-              >
-                <Link href="/profile/settings">
-                  <Settings className="h-5 w-5" />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
+                  <Avatar className="h-9 w-9">
+                    <AvatarImage src={profile?.avatarUrl || undefined} alt={profile?.fullName || user?.email || '使用者'} data-ai-hint="person avatar" />
+                    <AvatarFallback className="bg-primary/20 text-primary">
+                       {getInitials(profile?.fullName) || <UserCircle2 size={20}/>}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>
+                  <div className="font-medium truncate">{profile?.fullName || user?.email || '使用者'}</div>
+                  <div className="text-xs text-muted-foreground capitalize">{profile?.role === 'adopter' ? '領養者' : profile?.role === 'caregiver' ? '照顧者' : '無'}</div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/profile">
+                    <UserCircle className="mr-2 h-4 w-4" />
+                    個人資料
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/profile/settings">
+                    <Settings className="mr-2 h-4 w-4" />
+                    帳戶設定
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  登出
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            !isWelcomePage && (
+              <Button asChild>
+                <Link href="/welcome">
+                  <LogIn className="mr-2 h-4 w-4" />
+                  登入 / 註冊
                 </Link>
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
-                    <Avatar className="h-9 w-9">
-                      <AvatarImage src={profile?.avatarUrl || undefined} alt={profile?.fullName || user?.email || '使用者'} data-ai-hint="person avatar" />
-                      <AvatarFallback className="bg-primary/20 text-primary">
-                         {getInitials(profile?.fullName) || <UserCircle2 size={20}/>}
-                      </AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>
-                    <div className="font-medium truncate">{profile?.fullName || user?.email || '使用者'}</div>
-                    <div className="text-xs text-muted-foreground capitalize">{profile?.role === 'adopter' ? '領養者' : profile?.role === 'caregiver' ? '照顧者' : '無'}</div>
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/profile">
-                      <UserCircle className="mr-2 h-4 w-4" />
-                      個人資料
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/profile/settings">
-                      <Settings className="mr-2 h-4 w-4" />
-                      帳戶設定
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
-                    <LogOut className="mr-2 h-4 w-4" />
-                    登出
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
-          ) : (
-            null
+            )
           )}
         </div>
       </nav>
