@@ -70,7 +70,7 @@ export default function AdoptionInfoPage() {
                 詳細領養流程
             </CardTitle>
             <CardDescription>完整的領養流程，幫助您順利完成領養程序。</CardDescription>
-        </CardHeader>
+        </Header>
         <CardContent>
           <Accordion type="single" collapsible className="w-full">
             <AccordionItem value="item-1">
@@ -88,7 +88,18 @@ export default function AdoptionInfoPage() {
             <AccordionItem value="item-3">
               <AccordionTrigger>步驟三：填寫領養申請文件</AccordionTrigger>
               <AccordionContent>
-                <p>確定領養意願後，請攜帶您的身分證至辦公室，工作人員會協助您填寫領養申請書及相關文件。文件內容主要為確認您已了解飼主責任並同意遵守相關規定。</p>
+                <p className="mb-4">確定領養意願後，請攜帶您的身分證至辦公室，工作人員會協助您填寫領養申請書及相關文件。文件內容主要為確認您已了解飼主責任並同意遵守相關規定。</p>
+                <Alert>
+                  <FileText className="h-4 w-4" />
+                  <AlertTitle>小提示：預先下載申請書</AlertTitle>
+                  <AlertDescription>
+                    部分收容所提供線上文件下載，您可以預先填寫以節省現場等候時間。建議您前往下方相關網站的「領養專區」或「表單下載區」查找。
+                    <Link href="https://www.tcapo.gov.taipei/cp.aspx?n=A40D4A08A913F706" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline mt-2">
+                        <ExternalLink className="w-3 h-3" />
+                        範例：臺北市動物之家認領養區
+                    </Link>
+                  </AlertDescription>
+                </Alert>
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="item-4">
