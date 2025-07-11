@@ -227,8 +227,8 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
 
   const likeDog = async (dogId: string) => {
-    // Guard for concurrent requests
-    if (isLiking.has(dogId)) {
+    // Guard for concurrent requests and already liked dogs
+    if (isLiking.has(dogId) || likedDogs.some(d => d.id === dogId)) {
       return;
     }
 
@@ -238,11 +238,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         title: "需要登入",
         description: "請先登入才能按讚狗狗！",
       });
-      return;
-    }
-
-    // Guard: Prevent liking a dog that's already in the liked list.
-    if (likedDogs.some(d => d.id === dogId)) {
       return;
     }
 
@@ -259,10 +254,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
       const { error: insertError } = await supabase
         .from('user_dog_likes')
-        .upsert(
-            { user_id: user.id, dog_id: dogId },
-            { ignoreDuplicates: true }
-        );
+        .insert({ user_id: user.id, dog_id: dogId });
       
       if (insertError) {
         // Revert UI change on error
@@ -297,7 +289,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   };
 
   const passDog = (dogId: string) => {
-    setSeenDogIds(prevSeenDogIds => new Set(prevSeenIds).add(dogId));
+    setSeenDogIds(prevSeenDogIds => new Set(prevSeenDogIds).add(dogId));
   };
   
   const getDogById = (dogId: string): Dog | undefined => {
