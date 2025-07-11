@@ -2,7 +2,7 @@
 "use client";
 
 import Link from 'next/link';
-import { Dog, Heart, UserCircle, LogIn, LogOut, UserCircle2, Sun, Moon, Settings } from 'lucide-react';
+import { Dog, Heart, UserCircle, LogIn, LogOut, UserCircle2, Sun, Moon, Settings, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -27,6 +27,7 @@ export const Navbar = () => {
   const navItems = [
     { href: '/', label: '滑卡配對', icon: <Dog className="h-5 w-5" />, requiresAuth: true },
     { href: '/matches', label: '我的配對', icon: <Heart className="h-5 w-5" />, requiresAuth: true },
+    { href: '/adoption-info', label: '領養資訊', icon: <FileText className="h-5 w-5" />, requiresAuth: false },
   ];
   
   const isWelcomePage = pathname === '/welcome';
