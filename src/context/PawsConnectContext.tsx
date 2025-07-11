@@ -93,19 +93,29 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [isLiking, setIsLiking] = useState<Set<string>>(new Set()); // Lock state for liking
-  const authCheckCompleted = useRef(false);
   const { toast } = useToast();
+
+  const resetDogState = useCallback(() => {
+    setMasterDogList([]);
+    setDogsToSwipe([]);
+    setLikedDogs([]);
+    setSeenDogIds(new Set());
+    setIsLoadingDogs(true);
+  }, []);
 
 
   useEffect(() => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        try {
-          setSession(session);
-          const currentUser = session?.user ?? null;
-          setUser(currentUser);
+        setIsLoadingAuth(true);
+        resetDogState(); // Reset state on any auth change
 
-          if (currentUser) {
+        const currentUser = session?.user ?? null;
+        setSession(session);
+        setUser(currentUser);
+
+        if (currentUser) {
+          try {
             const { data: profileData, error: profileError } = await supabase
               .from('profiles')
               .select('*')
@@ -126,29 +136,25 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
             } else {
               setProfile(null);
             }
-          } else {
+          } catch (e) {
+            console.error("處理個人資料時發生未預期的錯誤:", e);
             setProfile(null);
-            setLikedDogs([]);
-            setSeenDogIds(new Set());
           }
-        } catch (e) {
-          console.error("處理身份驗證狀態變更時發生未預期的錯誤:", e);
-        } finally {
-           if (!authCheckCompleted.current) {
-            setIsLoadingAuth(false);
-            authCheckCompleted.current = true;
-          }
+        } else {
+          setProfile(null);
         }
+        
+        setIsLoadingAuth(false);
       }
     );
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [resetDogState]);
 
 
-  const loadInitialDogData = useCallback(async () => {
+  const loadInitialDogData = useCallback(async (currentUserId: string | null) => {
     const sourceToQuery = 'dogs_for_adoption_view'; 
     setIsLoadingDogs(true);
     try {
@@ -164,11 +170,11 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         const allDogsFromDb = dogsData.map(mapDbDogToDogType);
         setMasterDogList(allDogsFromDb);
 
-        if (user) { 
+        if (currentUserId) { 
             const { data: likedDogsData, error: likedDogsError } = await supabase
             .from('user_dog_likes')
             .select('dog_id')
-            .eq('user_id', user.id);
+            .eq('user_id', currentUserId);
 
             if (likedDogsError) {
                 console.error('Error fetching liked dogs:', likedDogsError);
@@ -203,14 +209,15 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     } finally {
       setIsLoadingDogs(false);
     }
-  }, [user]);
+  }, []);
 
 
   useEffect(() => {
+    // Only load dog data when auth is settled.
     if (!isLoadingAuth) {
-      loadInitialDogData();
+      loadInitialDogData(user?.id ?? null);
     }
-  }, [isLoadingAuth, loadInitialDogData]);
+  }, [isLoadingAuth, user, loadInitialDogData]);
 
 
   useEffect(() => {
@@ -227,7 +234,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
 
   const likeDog = async (dogId: string) => {
-    // Guard for concurrent requests and already liked dogs
     if (isLiking.has(dogId) || likedDogs.some(d => d.id === dogId)) {
       return;
     }
@@ -245,10 +251,8 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     if (!dog) return;
 
     try {
-      // Lock this dog's ID
       setIsLiking(prev => new Set(prev).add(dogId));
 
-      // Optimistic UI update
       setLikedDogs(prevLikedDogs => [...prevLikedDogs, dog]);
       setSeenDogIds(prevSeenIds => new Set(prevSeenIds).add(dogId));
 
@@ -257,7 +261,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         .insert({ user_id: user.id, dog_id: dogId });
       
       if (insertError) {
-        // Revert UI change on error
         setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
         
         console.error("Error saving like to Supabase:", insertError);
@@ -270,7 +273,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         return;
       }
     } catch (error) {
-        // Revert UI on any unexpected error too
         setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
         console.error("An unexpected error occurred during the like operation:", error);
         toast({
@@ -279,7 +281,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
           description: "按讚時發生問題，您的操作已被復原。",
         });
     } finally {
-      // Unlock this dog's ID
       setIsLiking(prev => {
         const newSet = new Set(prev);
         newSet.delete(dogId);
@@ -304,6 +305,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       setIsLoadingAuth(false);
       return { session: null, error: error.message || '登入失敗。請檢查您的帳號密碼。' };
     }
+    // Auth state change will handle the rest
     return { session: data.session, error: null };
   };
 
@@ -333,18 +335,23 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
     if (profileError) {
       console.error('建立個人資料時發生錯誤:', profileError);
+      // Even if profile creation fails, user is signed up. Auth listener will handle state.
       setIsLoadingAuth(false);
       return { user: authData.user, error: '註冊成功，但建立個人資料失敗: ' + profileError.message };
     }
     
+    // Auth state change will handle the rest
     return { user: authData.user, error: null };
   };
 
   const logout = async (): Promise<{ error: string | null }> => {
+    setIsLoadingAuth(true);
     const { error } = await supabase.auth.signOut();
     if (error) {
+      setIsLoadingAuth(false);
       return { error: error.message || '登出時發生錯誤。' };
     }
+    // Auth state change will handle the rest
     return { error: null };
   };
 
