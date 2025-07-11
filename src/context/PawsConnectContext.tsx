@@ -25,10 +25,6 @@ interface PawsConnectContextType {
   session: SupabaseSession | null;
   isLoadingAuth: boolean;
   isUpdatingProfile: boolean;
-  login: (email: string, password: string) => Promise<{ session: SupabaseSession | null; error: string | null }>;
-  signUp: (email: string, password: string, role: UserRole, fullName?: string | null) => Promise<{ user: SupabaseUser | null; error: string | null }>;
-  logout: () => Promise<{ error: string | null }>;
-  updateProfile: (updates: { fullName?: string | null; avatarUrl?: string | null }) => Promise<{ success: boolean; error?: string | null; updatedProfile?: Profile | null }>;
 }
 
 const PawsConnectContext = React.createContext<PawsConnectContextType | undefined>(undefined);
@@ -92,7 +88,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
-  const [isLiking, setIsLiking] = useState<Set<string>>(new Set()); // Lock state for liking
+  const [isLiking, setIsLiking] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
   const resetDogState = useCallback(() => {
@@ -108,7 +104,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setIsLoadingAuth(true);
-        resetDogState(); // Reset state on any auth change
+        resetDogState();
 
         const currentUser = session?.user ?? null;
         setSession(session);
@@ -213,7 +209,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
 
   useEffect(() => {
-    // Only load dog data when auth is settled.
     if (!isLoadingAuth) {
       loadInitialDogData(user?.id ?? null);
     }
@@ -225,8 +220,9 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       setDogsToSwipe([]);
       return;
     }
+    const currentLikedIds = new Set(likedDogs.map(d => d.id));
     const dogsForSwiping = masterDogList.filter(dog =>
-      !likedDogs.find(ld => ld.id === dog.id) &&
+      !currentLikedIds.has(dog.id) &&
       !seenDogIds.has(dog.id) 
     );
     setDogsToSwipe(dogsForSwiping);
@@ -253,27 +249,33 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     try {
       setIsLiking(prev => new Set(prev).add(dogId));
 
-      setLikedDogs(prevLikedDogs => [...prevLikedDogs, dog]);
-      setSeenDogIds(prevSeenIds => new Set(prevSeenIds).add(dogId));
-
       const { error: insertError } = await supabase
         .from('user_dog_likes')
         .insert({ user_id: user.id, dog_id: dogId });
       
       if (insertError) {
-        setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
-        
-        console.error("Error saving like to Supabase:", insertError);
-
-        toast({
-          variant: "destructive",
-          title: "按讚失敗",
-          description: "無法儲存您的選擇。請檢查您的網路連線或稍後再試。",
-        });
-        return;
+        // The most common error here is '23505' (unique_violation), which is okay.
+        // It means the user already liked this dog, maybe from another session.
+        // We will just ensure the UI is consistent.
+        if (insertError.code !== '23505') {
+            console.error("Error saving like to Supabase:", insertError);
+            toast({
+              variant: "destructive",
+              title: "按讚失敗",
+              description: "無法儲存您的選擇。請檢查您的網路連線或稍後再試。",
+            });
+        }
       }
+
+      setLikedDogs(prevLikedDogs => {
+        if (!prevLikedDogs.some(d => d.id === dog.id)) {
+          return [...prevLikedDogs, dog];
+        }
+        return prevLikedDogs;
+      });
+      setSeenDogIds(prevSeenIds => new Set(prevSeenIds).add(dogId));
+
     } catch (error) {
-        setLikedDogs(prevLikedDogs => prevLikedDogs.filter(d => d.id !== dogId));
         console.error("An unexpected error occurred during the like operation:", error);
         toast({
           variant: "destructive",
@@ -305,7 +307,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       setIsLoadingAuth(false);
       return { session: null, error: error.message || '登入失敗。請檢查您的帳號密碼。' };
     }
-    // Auth state change will handle the rest
     return { session: data.session, error: null };
   };
 
@@ -335,12 +336,10 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
     if (profileError) {
       console.error('建立個人資料時發生錯誤:', profileError);
-      // Even if profile creation fails, user is signed up. Auth listener will handle state.
       setIsLoadingAuth(false);
       return { user: authData.user, error: '註冊成功，但建立個人資料失敗: ' + profileError.message };
     }
     
-    // Auth state change will handle the rest
     return { user: authData.user, error: null };
   };
 
@@ -351,7 +350,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       setIsLoadingAuth(false);
       return { error: error.message || '登出時發生錯誤。' };
     }
-    // Auth state change will handle the rest
     return { error: null };
   };
 
