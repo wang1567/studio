@@ -33,6 +33,7 @@ export const Navbar = () => {
 
   const handleLogout = async () => {
     await logout();
+    // 明確導向到登入/介紹頁面
     router.push('/welcome');
   };
   
