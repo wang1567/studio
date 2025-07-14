@@ -12,6 +12,7 @@ import { MapPin, Heart, Video, X, FileText } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import Link from 'next/link';
 
 interface DogDetailsModalProps {
   dog: Dog | null;
@@ -120,8 +121,10 @@ export const DogDetailsModal = ({ dog, isOpen, onClose, initialTab = 'details' }
 
         <div className="p-4 border-t bg-secondary/30 flex justify-end gap-3 mt-auto">
             <Button variant="outline" onClick={onClose}>關閉</Button>
-            <Button className="bg-accent hover:bg-accent/90 text-accent-foreground">
-              <Heart className="mr-2 h-4 w-4" /> 表達領養意願
+            <Button asChild className="bg-accent hover:bg-accent/90 text-accent-foreground">
+              <Link href="/adoption-info">
+                <Heart className="mr-2 h-4 w-4" /> 表達領養意願
+              </Link>
             </Button>
         </div>
       </DialogContent>
