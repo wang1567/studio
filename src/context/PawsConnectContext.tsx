@@ -109,42 +109,42 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       async (_event, session) => {
         setIsLoadingAuth(true);
         resetDogState();
-
+        
         const currentUser = session?.user ?? null;
         setSession(session);
         setUser(currentUser);
 
-        if (currentUser) {
-          try {
-            const { data: profileData, error: profileError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', currentUser.id)
-              .single<DbProfile>();
+        try {
+          if (currentUser) {
+              const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', currentUser.id)
+                .single<DbProfile>();
 
-            if (profileError && profileError.code !== 'PGRST116') {
-              console.error('讀取個人資料時發生錯誤:', profileError);
-              setProfile(null);
-            } else if (profileData) {
-              setProfile({
-                id: profileData.id,
-                role: profileData.role as UserRole,
-                fullName: profileData.full_name,
-                avatarUrl: profileData.avatar_url,
-                updatedAt: profileData.updated_at,
-              });
-            } else {
-              setProfile(null);
-            }
-          } catch (e) {
-            console.error("處理個人資料時發生未預期的錯誤:", e);
+              if (profileError && profileError.code !== 'PGRST116') {
+                console.error('讀取個人資料時發生錯誤:', profileError);
+                setProfile(null);
+              } else if (profileData) {
+                setProfile({
+                  id: profileData.id,
+                  role: profileData.role as UserRole,
+                  fullName: profileData.full_name,
+                  avatarUrl: profileData.avatar_url,
+                  updatedAt: profileData.updated_at,
+                });
+              } else {
+                setProfile(null);
+              }
+          } else {
             setProfile(null);
           }
-        } else {
-          setProfile(null);
+        } catch (e) {
+            console.error("處理個人資料時發生未預期的錯誤:", e);
+            setProfile(null);
+        } finally {
+            setIsLoadingAuth(false);
         }
-        
-        setIsLoadingAuth(false);
       }
     );
 
@@ -224,7 +224,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       setDogsToSwipe([]);
       return;
     }
-    // Logic changed to always show all dogs from the master list for swiping.
     setDogsToSwipe(masterDogList);
   }, [masterDogList, isLoadingDogs]);
 
@@ -426,3 +425,5 @@ export const usePawsConnect = () => {
   }
   return context;
 };
+
+    
