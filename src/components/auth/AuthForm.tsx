@@ -69,7 +69,7 @@ export const AuthForm = () => {
         const { email, password, role, fullName } = data as SignupFormValues;
         await signUp(email, password, role, fullName);
         toast({ title: '註冊成功', description: '歡迎！請檢查您的電子郵件以驗證您的帳戶。' });
-        setAuthMode('login'); 
+        router.push('/');
       }
     } catch (error: any) {
       toast({
