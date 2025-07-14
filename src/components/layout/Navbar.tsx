@@ -2,31 +2,23 @@
 "use client";
 
 import Link from 'next/link';
-import { Dog, Heart, UserCircle, LogIn, LogOut, UserCircle2, Sun, Moon, Settings, FileText } from 'lucide-react';
+import { Dog, Heart, UserCircle, LogIn, LogOut, Sun, Moon, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { usePawsConnect } from '@/context/PawsConnectContext';
 import { useTheme } from '@/context/ThemeContext';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 
 export const Navbar = () => {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, profile, logout, isLoadingAuth } = usePawsConnect();
+  const { user, logout, isLoadingAuth } = usePawsConnect();
   const { theme, toggleTheme } = useTheme();
 
   const navItems = [
     { href: '/', label: '滑卡配對', icon: <Dog className="h-5 w-5" />, requiresAuth: true },
     { href: '/matches', label: '我的配對', icon: <Heart className="h-5 w-5" />, requiresAuth: true },
+    { href: '/profile', label: '個人資料', icon: <UserCircle className="h-5 w-5" />, requiresAuth: true },
     { href: '/adoption-info', label: '領養資訊', icon: <FileText className="h-5 w-5" />, requiresAuth: false },
   ];
   
@@ -34,23 +26,7 @@ export const Navbar = () => {
 
   const handleLogout = async () => {
     await logout();
-    // 明確導向到登入/介紹頁面
     router.push('/welcome');
-  };
-  
-  const getInitials = (name?: string | null): string => {
-    if (!name) {
-      return '';
-    }
-    if (name.length <= 2) {
-      return name.toUpperCase();
-    }
-    const nameParts = name.split(' ');
-    if (nameParts.length > 1 && nameParts.every(part => part.length > 0)) {
-        return nameParts.map(n => n[0]).join('').toUpperCase();
-    }
-    // Fallback for single word or CJK names
-    return name.length > 1 ? name.substring(name.length - 2).toUpperCase() : name.toUpperCase();
   };
 
   return (
@@ -63,6 +39,8 @@ export const Navbar = () => {
         <div className="flex items-center gap-1 sm:gap-2">
           {!isWelcomePage && navItems.map((item) => {
             if (item.requiresAuth && !user) return null;
+            // Hide profile link if we have a dedicated button group for auth
+            if (item.href === '/profile' && user) return null;
             return (
               <Link key={item.href} href={item.href}>
                 <Button
@@ -94,43 +72,19 @@ export const Navbar = () => {
             <div className="h-10 w-20 flex items-center justify-center">
                <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
             </div>
-          ) : user && profile ? ( 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0">
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage src={profile?.avatarUrl || undefined} alt={profile?.fullName || user?.email || '使用者'} data-ai-hint="person avatar" />
-                    <AvatarFallback className="bg-primary/20 text-primary">
-                       {getInitials(profile?.fullName) || <UserCircle2 size={20}/>}
-                    </AvatarFallback>
-                  </Avatar>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>
-                  <div className="font-medium truncate">{profile?.fullName || user?.email || '使用者'}</div>
-                  <div className="text-xs text-muted-foreground capitalize">{profile?.role === 'adopter' ? '領養者' : profile?.role === 'caregiver' ? '照顧者' : '無'}</div>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/profile">
-                    <UserCircle className="mr-2 h-4 w-4" />
-                    個人資料
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/profile/settings">
-                    <Settings className="mr-2 h-4 w-4" />
-                    帳戶設定
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:bg-destructive/10 focus:text-destructive">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  登出
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          ) : user ? ( 
+            <>
+              <Button variant="ghost" asChild>
+                <Link href="/profile">
+                  <UserCircle className="mr-2 h-4 w-4" />
+                  個人資料
+                </Link>
+              </Button>
+              <Button variant="outline" onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                登出
+              </Button>
+            </>
           ) : (
             !isWelcomePage && (
               <Button asChild>
