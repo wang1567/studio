@@ -133,7 +133,7 @@ export default function AdoptionInfoPage() {
             <Link href="https://www.ahiqo.ntpc.gov.tw/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-600 hover:underline">
                 <ExternalLink className="w-4 h-4" /> 新北市政府動物保護防疫處
             </Link>
-             <Link href="https://asms.coa.gov.tw/AmlApp/App/Announce.aspx" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-600 hover:underline">
+             <Link href="https://asms.moa.gov.tw/Amlapp/App/Announce.aspx" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-600 hover:underline">
                 <ExternalLink className="w-4 h-4" /> 全國動物收容系統
             </Link>
         </CardContent>
