@@ -18,7 +18,6 @@ export const Navbar = () => {
   const navItems = [
     { href: '/', label: '滑卡配對', icon: <Dog className="h-5 w-5" />, requiresAuth: true },
     { href: '/matches', label: '我的配對', icon: <Heart className="h-5 w-5" />, requiresAuth: true },
-    { href: '/profile', label: '個人資料', icon: <UserCircle className="h-5 w-5" />, requiresAuth: true },
     { href: '/adoption-info', label: '領養資訊', icon: <FileText className="h-5 w-5" />, requiresAuth: false },
   ];
   
@@ -39,8 +38,6 @@ export const Navbar = () => {
         <div className="flex items-center gap-1 sm:gap-2">
           {!isWelcomePage && navItems.map((item) => {
             if (item.requiresAuth && !user) return null;
-            // Hide profile link if we have a dedicated button group for auth
-            if (item.href === '/profile' && user) return null;
             return (
               <Link key={item.href} href={item.href}>
                 <Button

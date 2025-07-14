@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Heart, Settings, LogOut, UserCircle2, PawPrint, Edit3, Save, XCircle } from "lucide-react";
+import { Heart, Settings, UserCircle2, PawPrint, Edit3, Save, XCircle } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -36,7 +36,6 @@ export default function ProfilePage() {
     profile, 
     isLoadingAuth, 
     likedDogs, 
-    logout,
     updateProfile,
     isUpdatingProfile
   } = usePawsConnect();
@@ -76,12 +75,6 @@ export default function ProfilePage() {
     }
   }, [profile, reset, isEditing]);
 
-
-  const handleLogout = async () => {
-    await logout();
-    router.push('/'); 
-  };
-  
   const getInitials = (name?: string | null) => {
     if (!name) return '';
     if (name.length <= 2) return name.toUpperCase();
@@ -205,9 +198,6 @@ export default function ProfilePage() {
                   <Link href="/profile/settings">
                     <Settings className="mr-2 h-4 w-4 text-primary" /> 帳戶設定
                   </Link>
-                </Button>
-                <Button variant="destructive" className="w-full justify-start" onClick={handleLogout}>
-                  <LogOut className="mr-2 h-4 w-4" /> 登出
                 </Button>
               </div>
             </>
