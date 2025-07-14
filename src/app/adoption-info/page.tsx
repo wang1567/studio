@@ -94,7 +94,7 @@ export default function AdoptionInfoPage() {
                   <AlertTitle>小提示：預先下載申請書</AlertTitle>
                   <AlertDescription>
                     部分收容所提供線上文件下載，您可以預先填寫以節省現場等候時間。建議您前往下方相關網站的「領養專區」或「表單下載區」查找。
-                    <Link href="https://www.tcapo.gov.taipei/cp.aspx?n=4F85971439392D54" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline mt-2">
+                    <Link href="https://www.tcapo.gov.taipei/cp.aspx?n=540601EBB8FD4066" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-blue-600 hover:underline mt-2">
                         <ExternalLink className="w-3 h-3" />
                         範例：臺北市動物之家認領養區
                     </Link>
