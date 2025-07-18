@@ -6,28 +6,41 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Video, Wifi, WifiOff } from 'lucide-react';
 import React, { useRef, useEffect } from 'react';
-import JSMpeg from 'jsmpeg-player';
 
 interface LiveStreamViewerProps {
   dog: Dog;
 }
 
 export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const videoWrapperRef = useRef<HTMLDivElement>(null);
   
-  const isStreamAvailable = dog.liveStreamUrl && dog.liveStreamUrl.startsWith('rtsp://');
+  const isStreamAvailable = dog.liveStreamUrl;
   const webSocketUrl = 'ws://localhost:8081'; // URL for the backend WebSocket stream server
 
   useEffect(() => {
-    let player: JSMpeg.Player | null = null;
+    let player: any = null; // Use 'any' to avoid type issues with dynamic import
     
-    if (isStreamAvailable && canvasRef.current) {
-        player = new JSMpeg.Player(webSocketUrl, { 
-            canvas: canvasRef.current,
-            autoplay: true,
-            audio: false,
-            loop: true
-        });
+    // Ensure this code only runs on the client
+    if (isStreamAvailable && videoWrapperRef.current && typeof window !== 'undefined') {
+      import('jsmpeg-player').then((JSMpeg) => {
+        // JSMpeg.default might be needed depending on the library's export structure
+        const Player = JSMpeg.default || JSMpeg.Player || JSMpeg;
+
+        if (videoWrapperRef.current) {
+          player = new Player(webSocketUrl, { 
+              canvas: videoWrapperRef.current.appendChild(document.createElement('canvas')),
+              autoplay: true,
+              audio: false,
+              loop: true
+          });
+          // Style the canvas to fit the container
+          if (player.canvas) {
+            player.canvas.style.width = '100%';
+            player.canvas.style.height = '100%';
+            player.canvas.style.objectFit = 'cover';
+          }
+        }
+      });
     }
 
     // Cleanup on component unmount
@@ -38,6 +51,10 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         } catch (e) {
           console.error("Error destroying JSMpeg player:", e);
         }
+      }
+      // Also clean up the canvas element
+      if (videoWrapperRef.current) {
+        videoWrapperRef.current.innerHTML = '';
       }
     };
   }, [isStreamAvailable, webSocketUrl]);
@@ -53,14 +70,12 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         <CardDescription>與 {dog.name} 進行視訊互動！</CardDescription>
       </CardHeader>
       <CardContent className="p-6 space-y-4 flex-grow flex flex-col">
-        <div className="aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden w-full flex-grow relative">
-          {isStreamAvailable ? (
-            <canvas 
-                ref={canvasRef} 
-                className="w-full h-full object-cover"
-                data-ai-hint="security camera"
-            />
-          ) : (
+        <div 
+          ref={videoWrapperRef}
+          className="aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden w-full flex-grow relative"
+          data-ai-hint="security camera"
+        >
+          {!isStreamAvailable && (
              <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 text-center p-4">
                   <WifiOff className="h-12 w-12 text-muted-foreground mb-4"/>
                   <h3 className="text-lg font-semibold">即時影像目前無法使用</h3>
