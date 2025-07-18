@@ -5,18 +5,43 @@ import type { Dog } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Video, Wifi, WifiOff } from 'lucide-react';
-import Image from 'next/image';
+import React, { useRef, useEffect } from 'react';
+import JSMpeg from 'jsmpeg-player';
 
 interface LiveStreamViewerProps {
   dog: Dog;
 }
 
 export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
-  // Browsers do not support RTSP streams directly.
-  // We will simulate the live stream view with a placeholder.
-  // The actual implementation would require a media server to transcode RTSP to a web-friendly format like HLS or DASH.
-
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  
   const isStreamAvailable = dog.liveStreamUrl && dog.liveStreamUrl.startsWith('rtsp://');
+  const webSocketUrl = 'ws://localhost:8081'; // URL for the backend WebSocket stream server
+
+  useEffect(() => {
+    let player: JSMpeg.Player | null = null;
+    
+    if (isStreamAvailable && canvasRef.current) {
+        player = new JSMpeg.Player(webSocketUrl, { 
+            canvas: canvasRef.current,
+            autoplay: true,
+            audio: false,
+            loop: true
+        });
+    }
+
+    // Cleanup on component unmount
+    return () => {
+      if (player) {
+        try {
+          player.destroy();
+        } catch (e) {
+          console.error("Error destroying JSMpeg player:", e);
+        }
+      }
+    };
+  }, [isStreamAvailable, webSocketUrl]);
+
 
   return (
     <Card className="shadow-lg h-full flex flex-col">
@@ -30,24 +55,11 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
       <CardContent className="p-6 space-y-4 flex-grow flex flex-col">
         <div className="aspect-video bg-muted rounded-md flex items-center justify-center overflow-hidden w-full flex-grow relative">
           {isStreamAvailable ? (
-            <>
-              {/* This is a placeholder. A real implementation would use a video player component (e.g., video.js, hls.js)
-                  and a web-compatible stream URL (HLS/DASH) transcoded from the RTSP source. */}
-              <Image 
-                src={`https://placehold.co/1280x720.png?text=Tapo+C200+Live+Feed`} 
-                alt={`${dog.name} 的即時影像`}
-                layout="fill"
-                objectFit="cover"
+            <canvas 
+                ref={canvasRef} 
+                className="w-full h-full object-cover"
                 data-ai-hint="security camera"
-              />
-              <div className="absolute inset-0 bg-black/30 flex flex-col items-center justify-center text-center p-4">
-                  <Wifi className="h-12 w-12 text-white/80 mb-4"/>
-                  <h3 className="text-lg font-semibold text-white">正在連接收容所攝影機...</h3>
-                  <p className="text-sm text-white/70">
-                    攝影機型號: Tapo C200
-                  </p>
-              </div>
-            </>
+            />
           ) : (
              <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 text-center p-4">
                   <WifiOff className="h-12 w-12 text-muted-foreground mb-4"/>
@@ -62,7 +74,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
             <Wifi className="h-4 w-4" />
             <AlertTitle>關於即時影像</AlertTitle>
             <AlertDescription>
-              此功能旨在顯示收容所提供的即時攝影機畫面。請注意，由於技術限制，瀏覽器無法直接播放 RTSP 串流。此為功能示意。
+              此功能透過後端服務將收容所的 RTSP 攝影機畫面轉碼，並以 WebSocket 串流播放。
             </AlertDescription>
           </Alert>
       </CardContent>
