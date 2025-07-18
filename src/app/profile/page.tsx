@@ -1,3 +1,4 @@
+
 "use client";
 
 import { usePawsConnect } from '@/context/PawsConnectContext';
@@ -77,13 +78,18 @@ export default function ProfilePage() {
 
   const getInitials = (name?: string | null) => {
     if (!name) return '';
-    if (name.length <= 2) return name.toUpperCase();
-    const nameParts = name.split(' ');
-    if (nameParts.length > 1 && nameParts.every(part => part.length > 0)) {
+    // Handle CJK names (e.g., "王小明" -> "小明")
+    const cjkRegex = /[\u4e00-\u9fa5]/;
+    if (cjkRegex.test(name)) {
+        return name.length > 2 ? name.substring(name.length - 2) : name;
+    }
+    // Handle Western names (e.g., "John Doe" -> "JD")
+    const nameParts = name.split(' ').filter(part => part.length > 0);
+    if (nameParts.length > 1) {
         return nameParts.map(n => n[0]).join('').toUpperCase();
     }
-    // Fallback for single word or CJK names (take last two chars if long enough)
-    return name.length > 1 ? name.substring(name.length - (name.match(/[\u4e00-\u9fa5]/) ? 2 : 2)).toUpperCase() : name.toUpperCase();
+    // Fallback for single word names (e.g., "Admin" -> "AD")
+    return name.substring(0, 2).toUpperCase();
   }
   
   const currentAvatarPreview = watch('avatarUrl');
