@@ -52,6 +52,16 @@ export default function ProfilePage() {
       avatarUrl: profile?.avatarUrl || '',
     }
   });
+  
+  const handleEditToggle = (editing: boolean) => {
+    setIsEditing(editing);
+    if (editing && profile) {
+      reset({
+        fullName: profile.fullName || '',
+        avatarUrl: profile.avatarUrl || '',
+      });
+    }
+  };
 
   useEffect(() => {
     if (!isLoadingAuth && !authUser) {
@@ -74,7 +84,7 @@ export default function ProfilePage() {
         avatarUrl: profile.avatarUrl || '',
       });
     }
-  }, [profile, reset, isEditing]);
+  }, [profile, reset]);
 
   const getInitials = (name?: string | null) => {
     if (!name) return '';
@@ -102,7 +112,7 @@ export default function ProfilePage() {
 
     if (result.success) {
       toast({ title: '個人資料已更新', description: '您的變更已儲存。' });
-      setIsEditing(false);
+      handleEditToggle(false);
     } else {
       toast({
         title: '更新失敗',
@@ -173,7 +183,7 @@ export default function ProfilePage() {
                 <Button type="submit" className="flex-1" disabled={isUpdatingProfile}>
                   <Save className="mr-2 h-4 w-4" /> {isUpdatingProfile ? '儲存中...' : '儲存變更'}
                 </Button>
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setIsEditing(false)} disabled={isUpdatingProfile}>
+                <Button type="button" variant="outline" className="flex-1" onClick={() => handleEditToggle(false)} disabled={isUpdatingProfile}>
                   <XCircle className="mr-2 h-4 w-4" /> 取消
                 </Button>
               </div>
@@ -192,7 +202,7 @@ export default function ProfilePage() {
               </div>
               
               <div className="space-y-3">
-                <Button variant="outline" className="w-full justify-start" onClick={() => setIsEditing(true)}>
+                <Button variant="outline" className="w-full justify-start" onClick={() => handleEditToggle(true)}>
                   <Edit3 className="mr-2 h-4 w-4 text-primary" /> 編輯個人資料
                 </Button>
                 <Button variant="outline" className="w-full justify-start" asChild>
