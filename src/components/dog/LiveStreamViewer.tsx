@@ -4,12 +4,11 @@
 import type { Dog } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Video, WifiOff, Loader2 } from 'lucide-react';
+import { Video, WifiOff, Loader2, ShieldAlert } from 'lucide-react';
 import React, { useRef, useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useTabsContext } from './TabsContext'; 
 
-// We are dynamically importing jsmpeg-player only on the client-side.
 let JSMpeg: any = null;
 if (typeof window !== 'undefined') {
   import('jsmpeg-player').then(module => {
@@ -31,46 +30,37 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   const { activeTab } = useTabsContext();
   const isTabActive = activeTab === 'live';
 
-  // --- IMPORTANT CONFIGURATION ---
-  // This must be the PUBLIC IP or domain name of the machine running stream-server.js
   const streamServerIp = '34.80.203.111'; 
   const streamServerPort = 8081;
-  // --- CONFIGURATION END ---
 
   useEffect(() => {
-    // CRITICAL: Only run logic if this tab is active.
     if (!isTabActive) {
-      // If tab becomes inactive, ensure player is destroyed.
-      if (playerRef.current) {
+      if (playerRef.current && playerRef.current.source) {
         try {
           playerRef.current.destroy();
         } catch (e) {
-            // Ignore errors during destroy
+          // Ignore errors
         }
         playerRef.current = null;
       }
       return;
     }
 
-    // Reset state for the new dog or when tab becomes active
     setError(null);
     setIsLoading(true);
-    console.log(`[LiveStream] Tab active. useEffect triggered for dog: ${dog.name} (${dog.id}).`);
 
-    // Use ws:// as it's the only protocol supported by the simple backend.
-    const webSocketUrl = `ws://${streamServerIp}:${streamServerPort}`;
-    console.log(`[LiveStream] Attempting to connect to: ${webSocketUrl}`);
+    // --- 使用安全的 wss:// 協定 ---
+    const webSocketUrl = `wss://${streamServerIp}:${streamServerPort}`;
+    console.log(`[LiveStream] Attempting to connect to secure WebSocket: ${webSocketUrl}`);
 
     const libraryLoadTimeout = setTimeout(() => {
         if (!JSMpeg) {
-          console.error("[LiveStream] JSMpeg library failed to load after timeout.");
           setError("播放器程式庫載入失敗，請重新整理頁面。");
           setIsLoading(false);
         }
       }, 5000);
 
     if (!JSMpeg || !canvasRef.current) {
-        console.warn("[LiveStream] JSMpeg library or canvas not ready yet.");
         return () => clearTimeout(libraryLoadTimeout);
     }
 
@@ -79,10 +69,9 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
     let player: any;
     
     try {
-      console.log(`[LiveStream] Initializing JSMpeg.Player...`);
       const Player = JSMpeg.Player;
       if (!Player) {
-        throw new Error("JSMpeg.Player is not available. The module might not have loaded correctly.");
+        throw new Error("JSMpeg.Player is not available.");
       }
       
       player = new Player(webSocketUrl, {
@@ -91,50 +80,39 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         audio: false,
         loop: true,
         onPlay: () => {
-            console.log(`[LiveStream] SUCCESS: Playback started for: ${webSocketUrl}`);
             setIsLoading(false);
             setError(null);
-            playerRef.current = player; // Only assign on successful play
+            playerRef.current = player;
         },
         onStalled: () => {
-            console.warn('[LiveStream] Player stalled. Waiting for data...');
             setIsLoading(true);
-        },
-        onEnded: () => {
-            console.log('[LiveStream] Stream ended.');
         },
         onError: (e: any) => {
             const errorMessage = e?.message || (typeof e === 'string' ? e : '未知串流錯誤');
             console.error('[LiveStream] FATAL: Player reported an error:', errorMessage, e);
-            setError(`無法連接至影像串流。請確認後端伺服器是否正常運作，並在瀏覽器設定中允許不安全的內容。`);
+            setError(`無法連接至安全影像串流 (WSS)。這可能是因為您使用的是自我簽署憑證。`);
             setIsLoading(false);
         }
       });
-      console.log("[LiveStream] JSMpeg.Player instance created. Waiting for 'onPlay' or 'onError' event...");
       
     } catch (e: any) {
-      console.error("[LiveStream] FATAL: Failed to initialize JSMpeg player in try-catch block:", e);
+      console.error("[LiveStream] FATAL: Failed to initialize JSMpeg player:", e);
       setError(`建立播放器時發生嚴重錯誤: ${e.message}`);
       setIsLoading(false);
     }
 
     return () => {
-      console.log('[LiveStream] Cleanup function called.');
       if (playerRef.current && playerRef.current.source) {
         try {
-          console.log('[LiveStream] Attempting to destroy successfully referenced player instance...');
           playerRef.current.destroy();
-          console.log('[LiveStream] Successfully referenced JSMpeg player instance destroyed.');
         } catch (e) {
-          console.error("[LiveStream] Failed to destroy referenced player instance during cleanup:", e);
+            console.error("[LiveStream] Failed to destroy referenced player instance during cleanup:", e);
         } finally {
             playerRef.current = null;
         }
-      } else {
-         console.log("[LiveStream] No valid, referenced player to destroy. Cleanup finished.");
       }
     };
-  }, [dog.id, dog.name, isTabActive]); // Add isTabActive to dependency array
+  }, [dog.id, dog.name, isTabActive]);
 
   return (
     <Card className="shadow-lg h-full flex flex-col">
@@ -143,7 +121,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
           <Video className="h-6 w-6 text-primary" />
           即時影像
         </CardTitle>
-        <CardDescription>與 {dog.name} 進行視訊互動！</CardDescription>
+        <CardDescription>與 {dog.name} 進行安全視訊互動！</CardDescription>
       </CardHeader>
       <CardContent className="p-6 space-y-4 flex-grow flex flex-col">
         <div 
@@ -161,9 +139,9 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
           {isLoading && !error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
                 <Loader2 className="h-12 w-12 text-primary animate-spin mb-4"/>
-                <h3 className="text-lg font-semibold text-primary">正在連接影像...</h3>
+                <h3 className="text-lg font-semibold text-primary">正在連接安全影像...</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  請稍候片刻。若長時間無回應，請確認您的瀏覽器是否允許不安全的內容。
+                  請稍候片刻。第一次連線至使用自我簽署憑證的伺服器可能會需要一些時間。
                 </p>
             </div>
           )}
@@ -178,10 +156,13 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
             </div>
           )}
         </div>
-        <Alert>
-            <AlertTitle>關於即時影像</AlertTitle>
+        <Alert variant="destructive">
+            <ShieldAlert className="h-4 w-4" />
+            <AlertTitle>關於安全連線 (WSS)</AlertTitle>
             <AlertDescription>
-              此功能將嘗試使用 `ws://` 協定連接至串流伺服器。若您的網站使用 `https`，您可能需要在瀏覽器網址列旁點擊「不安全」或鎖頭圖示，並手動**允許載入不安全的內容**。
+              此功能現在使用安全的 `wss://` 協定。由於我們在開發環境中使用的是**自我簽署憑證**，您的瀏覽器會將其標示為「不安全」。您需要**手動信任此憑證**才能觀看影像。
+              <br/>
+              **操作方法：**請在新分頁中開啟 <a href={`https://${streamServerIp}:${streamServerPort}`} target="_blank" rel="noopener noreferrer" className="font-bold underline">https://{streamServerIp}:{streamServerPort}</a>，在頁面上點擊「進階」並選擇「繼續前往... (不安全)」。完成後，回到此頁面重新整理即可。
             </AlertDescription>
         </Alert>
       </CardContent>
