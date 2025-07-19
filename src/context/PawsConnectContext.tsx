@@ -168,7 +168,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     }
 
     try {
-        // Step 1: Fetch liked dogs for the current user.
+        // Step 1: Fetch liked dogs for the current user using a JOIN.
         const { data: likedDogsData, error: likedDogsError } = await supabase
             .from('user_dog_likes')
             .select(`
@@ -181,10 +181,11 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
             throw likedDogsError;
         }
         
+        // Correctly extract the nested dog data from each record in the join result.
         const userLikedDbDogs = (likedDogsData || [])
-            .map(item => item.dogs_for_adoption_view)
+            .map(likeRecord => likeRecord.dogs_for_adoption_view) // Correctly extracts the nested object
             .filter((dog): dog is DbDog => dog !== null && typeof dog === 'object');
-
+            
         const userLikedDogs = userLikedDbDogs.map(mapDbDogToDogType);
         
         setLikedDogs(userLikedDogs);
