@@ -3,80 +3,77 @@ const express = require('express');
 const cors = require('cors');
 const { spawn } = require('child_process');
 const WebSocket = require('ws');
-const http = require('http'); // 改回使用 http
+const http = require('http');
 const path = require('path');
 
 const app = express();
 
-// 允許所有來源的請求，以簡化開發環境中的跨域問題
+// Allow all origins to simplify cross-origin issues in a development environment.
 app.use(cors({ origin: '*' }));
 
-// --- 使用 http 建立伺服器 ---
 const server = http.createServer(app);
-// -----------------------------
 
-// 將 WebSocket 伺服器附加到 HTTP 伺服器上
+// Attach the WebSocket server to the HTTP server.
 const wss = new WebSocket.Server({ server });
 
-// --- 正確的攝影機 RTSP 位址 ---
-// 請確保此處的 IP 位址和認證資訊是正確的
+// The correct RTSP address for the camera.
+// Ensure the IP address and credentials here are correct.
 const rtspUrl = 'rtsp://wang1567:15671567@192.168.88.101:554/stream1';
-// -----------------------------
 
-console.log(`[Config] 設定的 RTSP URL: ${rtspUrl}`);
+console.log(`[Config] Configured RTSP URL: ${rtspUrl}`);
 
-// WebSocket 連線處理
+// WebSocket connection handling.
 wss.on('connection', (ws, req) => {
     const remoteAddress = req.socket.remoteAddress;
-    console.log(`[${new Date().toLocaleTimeString()}] 來自 ${remoteAddress} 的新 WebSocket (WS) 連線`);
+    console.log(`[${new Date().toLocaleTimeString()}] New WebSocket (WS) connection from ${remoteAddress}`);
 
-    // 為每一個新的客戶端連線，都產生一個新的 FFmpeg 程序
+    // For each new client connection, spawn a new FFmpeg process.
     const ffmpeg = spawn('ffmpeg', [
-        '-rtsp_transport', 'tcp',        // 優先使用 TCP 傳輸，更穩定
-        '-i', rtspUrl,                   // 輸入的 RTSP 串流
-        '-f', 'mpegts',                  // 輸出格式為 MPEG-TS
-        '-codec:v', 'mpeg1video',        // 輸出視訊編碼為 mpeg1
-        '-s', '1280x720',                // 輸出解析度
-        '-b:v', '1000k',                 // 視訊位元率
-        '-bf', '0',                      // 關閉 B 幀，降低延遲
-        '-r', '30',                      // 幀率
-        '-muxdelay', '0.001',            // 關鍵：極低的複用延遲，確保即時輸出
-        'pipe:1'                         // 將輸出導向到標準輸出 (stdout)
+        '-rtsp_transport', 'tcp',        // Prioritize TCP transport for stability.
+        '-i', rtspUrl,                   // Input RTSP stream.
+        '-f', 'mpegts',                  // Output format is MPEG-TS.
+        '-codec:v', 'mpeg1video',        // Output video codec is mpeg1.
+        '-s', '1280x720',                // Output resolution.
+        '-b:v', '1000k',                 // Video bitrate.
+        '-bf', '0',                      // Disable B-frames to reduce latency.
+        '-r', '30',                      // Frame rate.
+        '-muxdelay', '0.001',            // Key: Very low multiplexing delay for real-time output.
+        'pipe:1'                         // Pipe the output to standard output (stdout).
     ]);
 
-    console.log(`[FFmpeg] 為連線 ${remoteAddress} 產生了新的 FFmpeg 程序。`);
+    console.log(`[FFmpeg] Spawned new FFmpeg process for connection ${remoteAddress}.`);
 
-    // 監聽 FFmpeg 的標準錯誤輸出 (用於除錯)
+    // Listen to FFmpeg's standard error output (for debugging).
     ffmpeg.stderr.on('data', (data) => {
-        // 為了避免洗版，可以選擇性地註解掉此行
+        // This can be very verbose, so it's commented out by default.
         // console.log(`[FFmpeg stderr - ${remoteAddress}]`, data.toString());
     });
     
-    // 監聽 FFmpeg 的標準輸出 (即影像資料)
+    // Listen to FFmpeg's standard output (which is the video data).
     ffmpeg.stdout.on('data', (data) => {
-        // 如果 WebSocket 仍然開啟，就傳送資料
+        // If the WebSocket is still open, send the data.
         if (ws.readyState === WebSocket.OPEN) {
             ws.send(data);
         }
     });
 
-    // 當 WebSocket 連線關閉時
+    // When the WebSocket connection closes.
     ws.on('close', () => {
-        console.log(`[WebSocket] 來自 ${remoteAddress} 的連線已關閉。`);
-        ffmpeg.kill(); // 終止對應的 FFmpeg 程序，釋放資源
-        console.log(`[FFmpeg] 已終止連線 ${remoteAddress} 的 FFmpeg 程序。`);
+        console.log(`[WebSocket] Connection from ${remoteAddress} has closed.`);
+        ffmpeg.kill(); // Terminate the corresponding FFmpeg process to free up resources.
+        console.log(`[FFmpeg] Terminated FFmpeg process for connection ${remoteAddress}.`);
     });
     
-    // 當 WebSocket 發生錯誤時
+    // When the WebSocket encounters an error.
     ws.on('error', (error) => {
         console.error(`[WebSocket Error - ${remoteAddress}]`, error);
         ffmpeg.kill();
     });
 
-    // 當 FFmpeg 程序退出時
+    // When the FFmpeg process exits.
     ffmpeg.on('close', (code) => {
-        console.log(`[FFmpeg] 連線 ${remoteAddress} 的程序以代碼 ${code} 退出`);
-        // 如果 WebSocket 仍然開啟，就主動關閉它
+        console.log(`[FFmpeg] Process for connection ${remoteAddress} exited with code ${code}`);
+        // If the WebSocket is still open, close it.
         if (ws.readyState === WebSocket.OPEN) {
             ws.close();
         }
@@ -88,14 +85,14 @@ app.get('/', (req, res) => {
 });
 
 process.on('uncaughtException', (error) => {
-    console.error('未捕獲的例外:', error);
+    console.error('Uncaught Exception:', error);
 });
 
 process.on('unhandledRejection', (error) => {
-    console.error('未處理的 Promise 拒絕:', error);
+    console.error('Unhandled Promise Rejection:', error);
 });
 
 const PORT = process.env.PORT || 8081;
 server.listen(PORT, () => {
-    console.log(`串流伺服器 (HTTP & WS) 正在埠 ${PORT} 上執行`);
+    console.log(`Stream server (HTTP & WS) is running on port ${PORT}`);
 });

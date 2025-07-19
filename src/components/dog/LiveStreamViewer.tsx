@@ -34,20 +34,20 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   const streamServerPort = 8081;
 
   useEffect(() => {
-    // 只有當分頁活躍時才執行初始化或銷毀邏輯
+    // Only run initialization or destruction logic when the tab is active.
     if (!isTabActive) {
       if (playerRef.current && playerRef.current.source) {
         try {
           playerRef.current.destroy();
         } catch (e) {
-            // 在此處忽略銷毀錯誤是安全的
+            // It's safe to ignore destroy errors here, as the player might be in a weird state.
         }
         playerRef.current = null;
       }
       return;
     }
 
-    // 當分頁變為活躍時，重置狀態
+    // Reset state when the tab becomes active.
     setError(null);
     setIsLoading(true);
 
@@ -80,19 +80,19 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         audio: false,
         loop: true,
         onPlay: () => {
-            console.log("[LiveStream] Player 'onPlay' event triggered.");
+            console.log("[LiveStream] Player 'onPlay' event triggered. Stream has started.");
             setIsLoading(false);
             setError(null);
-            playerRef.current = player; // 只有成功播放後才賦值
+            // Only assign to ref after a successful play event.
+            playerRef.current = player;
         },
         onStalled: () => {
-            console.log("[LiveStream] Player 'onStalled' event triggered.");
             setIsLoading(true);
         },
         onError: (e: any) => {
             const errorMessage = e?.message || (typeof e === 'string' ? e : '未知串流錯誤');
             console.error('[LiveStream] Player reported an error:', errorMessage, e);
-            setError(`無法連接至影像串流 (WS)。瀏覽器可能已因混合內容安全政策而阻擋連線。`);
+            setError(`無法連接至影像串流。請確認後端伺服器是否正常運作。`);
             setIsLoading(false);
         }
       });
@@ -103,9 +103,9 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
       setIsLoading(false);
     }
 
-    // 清理函式
+    // Cleanup function
     return () => {
-      // 只銷毀已成功播放並儲存在 ref 中的實例
+      // Only destroy the instance that was successfully playing and stored in the ref.
       if (playerRef.current && playerRef.current.source) {
         try {
           playerRef.current.destroy();
@@ -116,7 +116,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         }
       }
     };
-  }, [dog.id, dog.name, isTabActive]); // 依賴 isTabActive
+  }, [dog.id, dog.name, isTabActive]); // Depend on isTabActive
 
   return (
     <Card className="shadow-lg h-full flex flex-col">
@@ -145,7 +145,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
                 <Loader2 className="h-12 w-12 text-primary animate-spin mb-4"/>
                 <h3 className="text-lg font-semibold text-primary">正在連接影像...</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  請稍候片刻。如果長時間沒有反應，請檢查下方的提示。
+                  請稍候片刻。如果長時間沒有反應，可能表示後端服務或攝影機離線。
                 </p>
             </div>
           )}
@@ -160,13 +160,11 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
             </div>
           )}
         </div>
-        <Alert variant="destructive">
+        <Alert variant="default">
             <ShieldAlert className="h-4 w-4" />
-            <AlertTitle>【重要】關於影像無法顯示</AlertTitle>
+            <AlertTitle>關於影像無法顯示</AlertTitle>
             <AlertDescription>
-              您的網站是透過安全的 `https://` 載入，而影像串流是透過不安全的 `ws://` 傳輸。這是典型的「混合內容」問題，大多數瀏覽器會預設阻擋這種連線。
-              <br/>
-              **解決方法：** 請在瀏覽器的網址列找到一個**鎖頭**或**盾牌**圖示，點擊它，然後在網站設定中**允許「不安全的內容」**。完成後，重新整理此頁面即可觀看影像。
+              如果持續無法顯示影像，可能是因為您的瀏覽器安全設定阻擋了連線。請在網址列旁找到一個**鎖頭**或**盾牌**圖示，點擊它，然後在網站設定中**允許「不安全的內容」**。完成後，重新整理此頁面即可。
             </AlertDescription>
         </Alert>
       </CardContent>
