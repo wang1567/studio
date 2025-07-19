@@ -14,29 +14,31 @@ interface LiveStreamViewerProps {
 export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   const videoWrapperRef = useRef<HTMLDivElement>(null);
   
-  // The stream is available only if a valid WebSocket URL is provided.
-  const isStreamAvailable = dog.liveStreamUrl && (dog.liveStreamUrl.startsWith('ws://') || dog.live_stream_url.startsWith('wss://'));
   const webSocketUrl = dog.liveStreamUrl;
+  const isStreamAvailable = webSocketUrl && (webSocketUrl.startsWith('ws://') || webSocketUrl.startsWith('wss://'));
 
   useEffect(() => {
     let player: any = null;
     
-    // Ensure this code only runs on the client and if the stream URL is valid.
     if (isStreamAvailable && webSocketUrl && videoWrapperRef.current && typeof window !== 'undefined') {
       import('jsmpeg-player').then((JSMpeg) => {
         const Player = JSMpeg.default || JSMpeg.Player || JSMpeg;
 
         if (videoWrapperRef.current) {
-          // Clear previous canvas if any
           videoWrapperRef.current.innerHTML = '';
           try {
             player = new Player(webSocketUrl, { 
                 canvas: videoWrapperRef.current.appendChild(document.createElement('canvas')),
                 autoplay: true,
                 audio: false,
-                loop: true
+                loop: true,
+                onPlay: () => {
+                   if (videoWrapperRef.current?.querySelector('.stream-error')) {
+                     videoWrapperRef.current.querySelector('.stream-error')?.remove();
+                   }
+                }
             });
-            // Style the canvas to fit the container
+
             if (player.canvas) {
               player.canvas.style.width = '100%';
               player.canvas.style.height = '100%';
@@ -44,14 +46,14 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
             }
           } catch(e) {
             console.error("Failed to initialize JSMpeg player:", e);
-            // Optionally, display an error in the UI
              if (videoWrapperRef.current) {
                 videoWrapperRef.current.innerHTML = `
-                  <div class="absolute inset-0 flex flex-col items-center justify-center bg-background/80 text-center p-4">
+                  <div class="stream-error absolute inset-0 flex flex-col items-center justify-center bg-background/80 text-center p-4">
                       <h3 class="text-lg font-semibold text-destructive">無法連接到串流</h3>
                       <p class="text-sm text-muted-foreground">
-                        請確認串流伺服器正在執行且位址正確: ${webSocketUrl}
+                        請確認串流伺服器正在執行且位址正確: 
                       </p>
+                      <p class="text-xs text-muted-foreground mt-1 bg-muted px-2 py-1 rounded-md font-mono">${webSocketUrl}</p>
                   </div>
                 `;
             }
@@ -60,7 +62,6 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
       });
     }
 
-    // Cleanup on component unmount
     return () => {
       if (player) {
         try {
@@ -105,7 +106,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
             <Wifi className="h-4 w-4" />
             <AlertTitle>關於即時影像</AlertTitle>
             <AlertDescription>
-              此功能透過後端服務將收容所的攝影機畫面轉碼，並以 WebSocket 串流播放。請在資料庫中為狗狗設定有效的 live_stream_url (例如 'ws://localhost:8081') 來啟用。
+              此功能透過後端服務將攝影機畫面轉碼並播放。請在資料庫中為狗狗設定有效的 live_stream_url (例如 'ws://192.168.1.10:8081') 來啟用此功能。
             </AlertDescription>
           </Alert>
       </CardContent>
