@@ -153,7 +153,9 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       setUser(currentUser);
       
       // Fetch profile concurrently with session check.
-      await fetchProfileAndSet(currentUser);
+      if (currentUser) {
+        await fetchProfileAndSet(currentUser);
+      }
       
       setIsLoadingAuth(false);
     };
@@ -164,16 +166,23 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       async (_event, newSession) => {
         // Only set loading if the user status actually changes.
         const currentUser = newSession?.user ?? null;
-        if (currentUser?.id !== user?.id) {
+        const previousUserId = user?.id;
+
+        if (currentUser?.id !== previousUserId) {
           setIsLoadingAuth(true);
         }
         
         resetDogState();
         setSession(newSession);
         setUser(currentUser);
-        await fetchProfileAndSet(currentUser);
+        
+        if (currentUser) {
+            await fetchProfileAndSet(currentUser);
+        } else {
+            setProfile(null);
+        }
 
-        if (currentUser?.id !== user?.id) {
+        if (currentUser?.id !== previousUserId) {
            setIsLoadingAuth(false);
         }
       }
@@ -183,7 +192,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       authListener.subscription.unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resetDogState]); // We intentionally omit `user` to avoid re-triggering on every profile update.
+  }, []);
 
 
  const loadInitialDogData = useCallback(async (currentUserId: string | null) => {
@@ -197,38 +206,37 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     }
 
     try {
+        // Fetch Liked Dogs (for "My Matches" page)
         const likedDogsPromise = supabase
             .from('user_dog_likes')
-            .select(`
-                dogs_for_adoption_view(*)
-            `)
+            .select(`dogs_for_adoption_view(*)`)
             .eq('user_id', currentUserId);
 
+        // Fetch All Dogs (for swiping)
         const allDogsPromise = supabase
             .from('dogs_for_adoption_view')
             .select('*');
 
         const [likedDogsResult, allDogsResult] = await Promise.all([likedDogsPromise, allDogsPromise]);
 
+        // Process Liked Dogs
         const { data: likedDogsData, error: likedDogsError } = likedDogsResult;
         if (likedDogsError) {
             console.error("Error fetching liked dogs from Supabase:", likedDogsError);
             throw likedDogsError;
         }
-
         const userLikedDbDogs = (likedDogsData || [])
             .map(likeRecord => likeRecord.dogs_for_adoption_view)
             .filter((dog): dog is DbDog => dog !== null && typeof dog === 'object');
-            
         const userLikedDogs = userLikedDbDogs.map(mapDbDogToDogType);
         setLikedDogs(userLikedDogs);
 
+        // Process All Dogs for Swiping
         const { data: allDogsData, error: allDogsError } = allDogsResult;
         if (allDogsError) {
             console.error("Error fetching all dogs from Supabase:", allDogsError);
             throw allDogsError;
         }
-
         const allDogs = allDogsData.map(mapDbDogToDogType);
         setMasterDogList(allDogs);
 
@@ -517,5 +525,3 @@ export const usePawsConnect = () => {
   }
   return context;
 };
-
-    
