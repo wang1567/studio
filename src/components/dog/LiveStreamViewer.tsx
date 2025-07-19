@@ -4,17 +4,18 @@
 import type { Dog } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Video, WifiOff } from 'lucide-react';
+import { Video, WifiOff, Loader2 } from 'lucide-react';
 import React, { useRef, useEffect, useState } from 'react';
 
 // We are dynamically importing jsmpeg-player only on the client-side.
 let JSMpeg: any = null;
 if (typeof window !== 'undefined') {
   import('jsmpeg-player').then(module => {
-    JSMpeg = module;
+    JSMpeg = module.default || module;
+  }).catch(err => {
+    console.error("Failed to load jsmpeg-player:", err);
   });
 }
-
 
 interface LiveStreamViewerProps {
   dog: Dog;
@@ -24,85 +25,99 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const playerRef = useRef<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // --- 重要設定 ---
-  // 請將下面的 IP 位址替換成您那台執行 stream-server.js 的電腦的【實際區域網路 IP 位址】。
-  // 您可以在該電腦的終端機或命令提示字元中，使用 `ipconfig` (Windows) 或 `ifconfig` (Mac/Linux) 指令來查詢。
-  const streamServerIp = '<YOUR_COMPUTER_IP_HERE>'; // 範例: '192.168.1.10'
+  // 這是在您本地網路上執行 stream-server.js 的電腦的 IP 位址。
+  // 我們已經根據您的 `ipconfig` 輸出，將其設定為正確的值。
+  const streamServerIp = '192.168.88.103'; 
+  const streamServerPort = 8081;
   // --- 設定結束 ---
 
   useEffect(() => {
-    // 重設狀態，確保每次切換狗狗時都是乾淨的
+    // Reset state for the new dog
     setError(null);
+    setIsLoading(true);
 
-    // 清理函式會在 effect 執行前或元件卸載時呼叫
     const cleanup = () => {
       if (playerRef.current) {
         try {
+          console.log('[LiveStream] Attempting to destroy player instance...');
           playerRef.current.destroy();
-          console.log('[LiveStream] JSMpeg 播放器已在清理時銷毀。');
-        } catch (e) {
-          console.error("[LiveStream] 在清理時銷毀播放器失敗:", e);
-        } finally {
           playerRef.current = null;
+          console.log('[LiveStream] JSMpeg player instance destroyed.');
+        } catch (e) {
+          console.error("[LiveStream] Failed to destroy player instance during cleanup:", e);
         }
       }
     };
-    
-    // 如果還沒載入 JSMpeg 模組，則稍後再試
+
+    // If the library hasn't loaded yet, wait.
     if (!JSMpeg) {
         const timeoutId = setTimeout(() => {
-            // 這會觸發 effect 重新執行
-            setError(prev => prev);
-        }, 100);
+            // Trigger a re-render to retry
+            setIsLoading(prev => !prev); 
+            setIsLoading(prev => !prev);
+        }, 200);
         return () => clearTimeout(timeoutId);
     }
     
-    if (streamServerIp === '<YOUR_COMPUTER_IP_HERE>') {
-        setError("設定錯誤：請在 LiveStreamViewer.tsx 程式碼中，將 <YOUR_COMPUTER_IP_HERE> 替換成您串流伺服器的實際 IP 位址。");
-        return cleanup;
+    // Check if canvas is ready
+    if (!canvasRef.current) {
+        console.warn("[LiveStream] Canvas ref is not ready yet.");
+        return;
     }
 
-    if (canvasRef.current) {
-      let webSocketUrl = `ws://${streamServerIp}:8081`;
-      
-      // 如果頁面是 HTTPS，自動切換到 WSS
-      if (window.location.protocol === 'https:') {
-        webSocketUrl = webSocketUrl.replace('ws://', 'wss://');
-      }
+    let webSocketUrl = `ws://${streamServerIp}:${streamServerPort}`;
+    // If the page is loaded over HTTPS, we must use WSS.
+    if (window.location.protocol === 'https:') {
+      webSocketUrl = `wss://${streamServerIp}:${streamServerPort}`;
+    }
 
-      console.log(`[LiveStream] 準備初始化 JSMpeg 播放器，目標位址: ${webSocketUrl}`);
-      try {
-        const Player = JSMpeg.Player;
-        if (!Player) {
-             throw new Error("JSMpeg.Player is not available. The module might not have loaded correctly.");
-        }
-        
-        const player = new Player(webSocketUrl, {
-          canvas: canvasRef.current,
-          autoplay: true,
-          audio: false,
-          loop: true,
-          onPlay: () => console.log(`[LiveStream] 播放器已啟動: ${webSocketUrl}`),
-          onStalled: () => console.warn('[LiveStream] 播放器停滯。'),
-          onEnded: () => console.log('[LiveStream] 播放器已結束。'),
-          onError: (e: any) => {
-              const errorMessage = e?.message || '未知錯誤';
-              console.error('[LiveStream] 播放器錯誤:', errorMessage);
-              setError(`無法播放串流。請檢查串流伺服器是否在 ${streamServerIp}:8081 運作，以及防火牆設定。`);
-          }
-        });
-        
-        playerRef.current = player;
-        
-      } catch (e: any) {
-        console.error("[LiveStream] 初始化 JSMpeg 播放器失敗:", e);
-        setError(`無法建立播放器。錯誤: ${e.message}`);
+    console.log(`[LiveStream] Preparing to initialize JSMpeg player for dog ${dog.id}. Target URL: ${webSocketUrl}`);
+    
+    try {
+      // Ensure we have the correct constructor
+      const Player = JSMpeg.Player;
+      if (!Player) {
+        throw new Error("JSMpeg.Player is not available. The module might not have loaded correctly.");
       }
+      
+      const player = new Player(webSocketUrl, {
+        canvas: canvasRef.current,
+        autoplay: true,
+        audio: false,
+        loop: true,
+        onPlay: () => {
+            console.log(`[LiveStream] Playback started for: ${webSocketUrl}`);
+            setIsLoading(false);
+            setError(null);
+        },
+        onStalled: () => {
+            console.warn('[LiveStream] Player stalled. Waiting for data...');
+            setIsLoading(true);
+        },
+        onEnded: () => {
+            console.log('[LiveStream] Stream ended.');
+        },
+        onError: (e: any) => {
+            const errorMessage = e?.message || '未知串流錯誤';
+            console.error('[LiveStream] Player error:', errorMessage);
+            setError(`無法播放串流。請檢查串流伺服器是否在 ${streamServerIp}:${streamServerPort} 正常運作，以及您的網路連線。`);
+            setIsLoading(false);
+        }
+      });
+      
+      playerRef.current = player;
+      
+    } catch (e: any) {
+      console.error("[LiveStream] Failed to initialize JSMpeg player:", e);
+      setError(`建立播放器時發生錯誤: ${e.message}`);
+      setIsLoading(false);
     }
 
     return cleanup;
-  }, [dog.id, streamServerIp]); // 當 dog.id 或 IP 改變時，重新執行
+  }, [dog.id]); // Re-run effect when the dog changes.
 
   return (
     <Card className="shadow-lg h-full flex flex-col">
@@ -120,15 +135,27 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         >
           <canvas 
             ref={canvasRef} 
-            className="w-full h-full object-cover"
-            style={{ display: !error ? 'block' : 'none' }}
+            className={cn(
+                "w-full h-full object-contain transition-opacity duration-300",
+                isLoading || error ? "opacity-0" : "opacity-100"
+            )}
           />
           
+          {isLoading && !error && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
+                <Loader2 className="h-12 w-12 text-primary animate-spin mb-4"/>
+                <h3 className="text-lg font-semibold text-primary">正在連接影像...</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  請稍候片刻。
+                </p>
+            </div>
+          )}
+
           {error && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-destructive/80 text-center p-4 rounded-md">
-                <WifiOff className="h-12 w-12 text-destructive-foreground mb-4"/>
-                <h3 className="text-lg font-semibold text-destructive-foreground">串流錯誤</h3>
-                <p className="text-sm text-destructive-foreground/90 max-w-full break-words px-2">
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-destructive/10 text-center p-4 rounded-md">
+                <WifiOff className="h-12 w-12 text-destructive mb-4"/>
+                <h3 className="text-lg font-semibold text-destructive">串流錯誤</h3>
+                <p className="text-sm text-destructive/90 max-w-full break-words px-2">
                   {error}
                 </p>
             </div>
