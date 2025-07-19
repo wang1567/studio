@@ -35,7 +35,7 @@ wss.on('connection', (ws, req) => {
         '-b:v', '1000k',
         '-bf', '0',
         '-r', '30', // Set a frame rate
-        '-muxdelay', '0.001',
+        '-muxdelay', '0.001', // <<<--- 這就是關鍵的修改！強制 ffmpeg 立即輸出資料
         'pipe:1'
     ]);
 
@@ -93,7 +93,7 @@ process.on('unhandledRejection', (error) => {
 });
 
 // Start the server
-const PORT = process.env.PORT || 8081; // Changed port to 8081 to align with ws server
+const PORT = process.env.PORT || 8081;
 server.listen(PORT, () => {
     console.log(`Stream server (HTTP & WebSocket) running on port ${PORT}`);
 });
