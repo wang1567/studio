@@ -254,13 +254,13 @@ export interface Database {
           name: string; // text from pets.name
           breed: string | null; // text from pets.breed
           age: number | null; // integer, calculated from pets.birth_date
-          gender: Database["public"]["Enums"]["gender_enum"]; // A placeholder, assuming you'll add this column
+          gender: Database["public"]["Enums"]["gender_enum"] | null;
           photos: string[] | null; // ARRAY from pets.photos
           description: string | null; // text from pets.description
           location: string | null; // text from pets.location
           personality_traits: string[] | null; // ARRAY from pets.personality_traits
           live_stream_url: string | null; // text from pets.live_stream_url
-          status: Database["public"]["Enums"]["dog_status_enum"]; // A placeholder
+          status: Database["public"]["Enums"]["dog_status_enum"] | null;
           // The JSON aggregates need to be defined in the view's SQL definition
           health_records: Json | null;
           feeding_schedule: Json | null;
