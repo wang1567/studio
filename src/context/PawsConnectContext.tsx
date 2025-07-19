@@ -180,11 +180,12 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
             console.error("Error fetching liked dogs from Supabase:", likedDogsError);
             throw likedDogsError;
         }
-
-        const userLikedDogs = (likedDogsData || [])
+        
+        const userLikedDbDogs = (likedDogsData || [])
             .map(item => item.dogs_for_adoption_view)
-            .filter((dog): dog is DbDog => dog !== null && typeof dog === 'object' && 'id' in dog)
-            .map(mapDbDogToDogType);
+            .filter((dog): dog is DbDog => dog !== null && typeof dog === 'object');
+
+        const userLikedDogs = userLikedDbDogs.map(mapDbDogToDogType);
         
         setLikedDogs(userLikedDogs);
 
