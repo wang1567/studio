@@ -16,57 +16,69 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   const playerRef = useRef<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const originalWebSocketUrl = dog.liveStreamUrl;
-  const isStreamAvailable = originalWebSocketUrl && (originalWebSocketUrl.startsWith('ws://') || originalWebSocketUrl.startsWith('wss://'));
+  // Directly connect to the fixed streaming server address.
+  const fixedWebSocketUrl = 'ws://192.168.137.75:8081';
 
   useEffect(() => {
+    // Reset state for the new dog
     setError(null);
+    if (playerRef.current) {
+      playerRef.current.destroy();
+      playerRef.current = null;
+    }
 
-    if (isStreamAvailable && originalWebSocketUrl && canvasRef.current && typeof window !== 'undefined') {
+    if (canvasRef.current && typeof window !== 'undefined') {
       import('jsmpeg-player').then((JSMpeg) => {
         const Player = JSMpeg.Player;
 
-        let secureWebSocketUrl = originalWebSocketUrl;
-        if (window.location.protocol === 'https:' && originalWebSocketUrl.startsWith('ws://')) {
-          secureWebSocketUrl = originalWebSocketUrl.replace('ws://', 'wss://');
-          console.log(`Switched to secure WebSocket: ${secureWebSocketUrl}`);
+        // Automatically switch to secure wss if the page is loaded over https
+        let secureWebSocketUrl = fixedWebSocketUrl;
+        if (window.location.protocol === 'https:' && fixedWebSocketUrl.startsWith('ws://')) {
+          secureWebSocketUrl = fixedWebSocketUrl.replace('ws://', 'wss://');
+          console.log(`[LiveStream] Page is secure, attempting to connect to: ${secureWebSocketUrl}`);
         }
 
         try {
-          console.log(`Initializing JSMpeg player for URL: ${secureWebSocketUrl}`);
-          // Assign the new player instance to the ref
-          playerRef.current = new Player(secureWebSocketUrl, {
+          console.log(`[LiveStream] Initializing JSMpeg player for URL: ${secureWebSocketUrl}`);
+          
+          const player = new Player(secureWebSocketUrl, {
             canvas: canvasRef.current,
             autoplay: true,
             audio: false,
             loop: true,
-            onPlay: () => console.log('JSMpeg player started for:', secureWebSocketUrl),
-            onStalled: () => console.warn('JSMpeg player stalled.'),
-            onEnded: () => console.log('JSMpeg player ended.'),
-            onSourceEstablished: () => console.log('JSMpeg source established.'),
+            onPlay: () => console.log(`[LiveStream] Player started for: ${secureWebSocketUrl}`),
+            onStalled: () => console.warn('[LiveStream] Player stalled.'),
+            onEnded: () => console.log('[LiveStream] Player ended.'),
+            onSourceEstablished: () => console.log('[LiveStream] Source established.'),
+            onError: (e: any) => {
+                console.error('[LiveStream] Player error:', e);
+                setError(`播放器發生錯誤: ${e.message || '未知錯誤'}`);
+            }
           });
+          
+          playerRef.current = player;
 
         } catch (e: any) {
-          console.error("Failed to initialize JSMpeg player:", e);
-          setError(`無法連接到串流。請確認串流伺服器正在執行且位址正確: ${secureWebSocketUrl} (錯誤: ${e.message})`);
+          console.error("[LiveStream] Failed to initialize JSMpeg player:", e);
+          setError(`無法建立播放器。請確認串流伺服器正在執行且位址正確。 (錯誤: ${e.message})`);
         }
       });
     }
 
-    // Centralized cleanup function
+    // Cleanup function to destroy the player when the component unmounts or the dog changes
     return () => {
       if (playerRef.current) {
         try {
           playerRef.current.destroy();
-          console.log('JSMpeg player destroyed on cleanup.');
+          console.log('[LiveStream] JSMpeg player destroyed on cleanup.');
         } catch (e) {
-          console.error("Error destroying JSMpeg player during cleanup:", e);
+          console.error("[LiveStream] Error destroying JSMpeg player during cleanup:", e);
         } finally {
           playerRef.current = null;
         }
       }
     };
-  }, [isStreamAvailable, originalWebSocketUrl, dog.id]);
+  }, [dog.id]); // Re-run effect when the dog ID changes
 
 
   return (
@@ -85,24 +97,15 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         >
           <canvas 
             ref={canvasRef} 
-            className="w-full h-full object-cover" 
-            style={{ display: isStreamAvailable && !error ? 'block' : 'none' }}
+            className="w-full h-full object-cover"
+            style={{ display: !error ? 'block' : 'none' }}
           />
           
-          {!isStreamAvailable && (
-             <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 text-center p-4">
-                  <WifiOff className="h-12 w-12 text-muted-foreground mb-4"/>
-                  <h3 className="text-lg font-semibold">即時影像目前無法使用</h3>
-                  <p className="text-sm text-muted-foreground">
-                    此狗狗目前沒有設定有效的即時影像串流。
-                  </p>
-              </div>
-          )}
           {error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-destructive/80 text-center p-4 rounded-md">
                 <WifiOff className="h-12 w-12 text-destructive-foreground mb-4"/>
                 <h3 className="text-lg font-semibold text-destructive-foreground">串流錯誤</h3>
-                <p className="text-sm text-destructive-foreground/90">
+                <p className="text-sm text-destructive-foreground/90 max-w-full break-words px-2">
                   {error}
                 </p>
             </div>
@@ -112,7 +115,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
             <Wifi className="h-4 w-4" />
             <AlertTitle>關於即時影像</AlertTitle>
             <AlertDescription>
-              此功能透過後端服務將攝影機畫面轉碼並播放。請在資料庫中為狗狗設定有效的 live_stream_url (例如 'ws://192.168.1.10:8081') 來啟用此功能。
+              此功能將嘗試連接至一個獨立的後端串流服務。請確保該服務正在運作，並且網路連線是通暢的。
             </AlertDescription>
           </Alert>
       </CardContent>
