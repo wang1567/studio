@@ -30,29 +30,26 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   const { activeTab } = useTabsContext();
   const isTabActive = activeTab === 'live';
 
-  const streamServerIp = '34.80.203.111'; 
   const streamServerPort = 8081;
 
   useEffect(() => {
-    // Only run initialization or destruction logic when the tab is active.
     if (!isTabActive) {
       if (playerRef.current && playerRef.current.source) {
         try {
           playerRef.current.destroy();
         } catch (e) {
-            // It's safe to ignore destroy errors here, as the player might be in a weird state.
+            // It's safe to ignore destroy errors here
         }
         playerRef.current = null;
       }
       return;
     }
 
-    // Reset state when the tab becomes active.
     setError(null);
     setIsLoading(true);
 
+    const streamServerIp = window.location.hostname;
     const webSocketUrl = `ws://${streamServerIp}:${streamServerPort}`;
-    console.log(`[LiveStream] Tab is active. Attempting to connect to WebSocket: ${webSocketUrl}`);
 
     const libraryLoadTimeout = setTimeout(() => {
         if (!JSMpeg) {
@@ -80,10 +77,8 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         audio: false,
         loop: true,
         onPlay: () => {
-            console.log("[LiveStream] Player 'onPlay' event triggered. Stream has started.");
             setIsLoading(false);
             setError(null);
-            // Only assign to ref after a successful play event.
             playerRef.current = player;
         },
         onStalled: () => {
@@ -91,21 +86,17 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         },
         onError: (e: any) => {
             const errorMessage = e?.message || (typeof e === 'string' ? e : '未知串流錯誤');
-            console.error('[LiveStream] Player reported an error:', errorMessage, e);
-            setError(`無法連接至影像串流。請確認後端伺服器是否正常運作。`);
+            setError(`無法連接至影像串流 (${errorMessage})。請確認後端伺服器是否正常運作，以及防火牆設定。`);
             setIsLoading(false);
         }
       });
       
     } catch (e: any) {
-      console.error("[LiveStream] Failed to initialize JSMpeg player:", e);
       setError(`建立播放器時發生嚴重錯誤: ${e.message}`);
       setIsLoading(false);
     }
 
-    // Cleanup function
     return () => {
-      // Only destroy the instance that was successfully playing and stored in the ref.
       if (playerRef.current && playerRef.current.source) {
         try {
           playerRef.current.destroy();
@@ -114,9 +105,15 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         } finally {
             playerRef.current = null;
         }
+      } else if (player) {
+         try {
+            player.destroy();
+        } catch(e) {
+            // Ignore error
+        }
       }
     };
-  }, [dog.id, dog.name, isTabActive]); // Depend on isTabActive
+  }, [dog.id, dog.name, isTabActive]);
 
   return (
     <Card className="shadow-lg h-full flex flex-col">
@@ -160,11 +157,11 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
             </div>
           )}
         </div>
-        <Alert variant="default">
+        <Alert variant="destructive">
             <ShieldAlert className="h-4 w-4" />
-            <AlertTitle>關於影像無法顯示</AlertTitle>
+            <AlertTitle>關於影像無法顯示 (混合內容警告)</AlertTitle>
             <AlertDescription>
-              如果持續無法顯示影像，可能是因為您的瀏覽器安全設定阻擋了連線。請在網址列旁找到一個**鎖頭**或**盾牌**圖示，點擊它，然後在網站設定中**允許「不安全的內容」**。完成後，重新整理此頁面即可。
+              如果持續無法顯示影像，可能是因為您的瀏覽器安全設定阻擋了連線。請在網址列旁找到一個**鎖頭**或**「不安全」**圖示，點擊它，選擇**「網站設定」**，然後將**「不安全的內容」**設定為**「允許」**。完成後，重新整理此頁面即可。
             </AlertDescription>
         </Alert>
       </CardContent>
