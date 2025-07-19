@@ -28,7 +28,7 @@ export interface Database {
           description: string | null // text
           location: string | null // text
           personality_traits: string[] | null // ARRAY
-          live_stream_url: string | null // text, custom field added for PawsConnect
+          live_stream_url: string | null // text
         }
         Insert: {
           id?: string // uuid
