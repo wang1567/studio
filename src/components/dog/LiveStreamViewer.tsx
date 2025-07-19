@@ -5,7 +5,7 @@ import type { Dog } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Video, WifiOff, Loader2 } from 'lucide-react';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useTabsContext } from './TabsContext'; 
 
@@ -21,21 +21,18 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   // The port the MJPEG stream server is running on.
   const streamServerPort = 8082;
   // Dynamically construct the URL using the current page's hostname.
-  // This is more robust than hardcoding an IP address.
   const streamUrl = isTabActive 
     ? `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:${streamServerPort}/`
     : '';
 
-  // Reset state when tab becomes inactive
+  // Reset state when tab becomes inactive or dog changes
   useEffect(() => {
     if (!isTabActive) {
       setStreamState('loading');
     } else {
-      // When tab becomes active, start in loading state.
-      // The img tag's onLoad/onError will change it.
-      setStreamState('loading');
+      setStreamState('loading'); // Start loading when tab becomes active
     }
-  }, [isTabActive]);
+  }, [isTabActive, dog.id]);
 
   return (
     <Card className="shadow-lg h-full flex flex-col">
@@ -53,6 +50,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         >
           {isTabActive && (
             <img
+              key={dog.id} // Add key to force re-render on dog change
               src={streamUrl}
               alt={`Live stream of ${dog.name}`}
               className={cn("w-full h-full object-contain transition-opacity duration-500", 
@@ -67,9 +65,6 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
                 <Loader2 className="h-12 w-12 text-primary animate-spin mb-4"/>
                 <h3 className="text-lg font-semibold text-primary">正在連接影像...</h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  請稍候。如果長時間沒有回應，請確認後端串流服務已啟動。
-                </p>
             </div>
           )}
           
@@ -79,11 +74,8 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
                 <Alert variant="destructive" className="mt-4 text-left">
                   <AlertTitle>串流連線失敗</AlertTitle>
                   <AlertDescription>
-                    <p>無法連接至即時影像。這可能是因為：</p>
-                    <ul className="list-disc pl-5 mt-2">
-                        <li>後端 `stream-server.js` 服務未啟動。</li>
-                        <li>瀏覽器安全設定(混合內容)阻擋了連線。</li>
-                    </ul>
+                    <p>無法連接至即時影像。請確認後端 `stream-server.js` 服務已在終端機中啟動，且沒有顯示任何錯誤訊息。</p>
+                     <p className="mt-2">如果後端服務正常，請確認瀏覽器允許載入不安全的內容。</p>
                   </AlertDescription>
                 </Alert>
             </div>
