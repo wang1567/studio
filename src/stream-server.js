@@ -29,12 +29,12 @@ app.get('/stream', (req, res) => {
   const ffmpegCommand = [
     '-hide_banner',
     '-rtsp_transport', 'tcp',
-    '-stimeout', '5000000',
+    '-stimeout', '5000000', // 5-second timeout for connection
     '-i', rtspUrl,
     '-f', 'mjpeg',
-    '-q:v', '7',
-    '-r', '15',
-    '-s', '640x480',
+    '-q:v', '7', // Quality level (2-31, lower is better)
+    '-r', '15', // Frame rate
+    '-s', '640x480', // Video size
     'pipe:1'
   ];
 
@@ -51,6 +51,7 @@ app.get('/stream', (req, res) => {
   });
 
   ffmpeg.stderr.on('data', (data) => {
+    // Log FFmpeg errors/warnings to the server console for debugging
     console.error(`[FFmpeg STDERR]: ${data.toString()}`);
   });
 
@@ -71,7 +72,7 @@ const server = http.createServer(app);
 
 server.listen(port, () => {
   console.log(`[Server] LOCAL MJPEG Stream server is running on http://localhost:${port}`);
-  console.log(`[Instructions] Now, in another terminal, run: ngrok http ${port}`);
+  console.log(`[Instructions] Now, in another terminal, run: ngrok http 8082 --host-header="localhost:8082"`);
 });
 
 server.on('error', (err) => {
