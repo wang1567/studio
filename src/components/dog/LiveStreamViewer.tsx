@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Video, WifiOff, Loader2 } from 'lucide-react';
 import React, { useRef, useEffect, useState } from 'react';
+import { cn } from '@/lib/utils';
 
 // We are dynamically importing jsmpeg-player only on the client-side.
 let JSMpeg: any = null;
