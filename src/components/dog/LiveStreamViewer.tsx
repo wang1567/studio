@@ -22,7 +22,8 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
     
     if (isStreamAvailable && webSocketUrl && videoWrapperRef.current && typeof window !== 'undefined') {
       import('jsmpeg-player').then((JSMpeg) => {
-        const Player = JSMpeg.default || JSMpeg.Player || JSMpeg;
+        // Correctly reference the Player constructor from the imported module.
+        const Player = JSMpeg.Player;
 
         if (videoWrapperRef.current) {
           videoWrapperRef.current.innerHTML = '';
