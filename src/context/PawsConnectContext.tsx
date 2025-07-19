@@ -159,38 +159,53 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
   const loadInitialDogData = useCallback(async (currentUserId: string | null) => {
     setIsLoadingDogs(true);
+    if (!currentUserId) {
+        setIsLoadingDogs(false);
+        return;
+    }
+
     try {
-        const { data: dogsData, error: dogsError } = await supabase
+        // Fetch liked dogs first using a join
+        const { data: likedDogsData, error: likedDogsError } = await supabase
+            .from('user_dog_likes')
+            .select(`
+                dogs_for_adoption_view (
+                    *
+                )
+            `)
+            .eq('user_id', currentUserId);
+
+        if (likedDogsError) {
+            console.error("Error fetching liked dogs from Supabase:", likedDogsError);
+            throw likedDogsError;
+        }
+
+        const userLikedDogs = (likedDogsData || [])
+            .map(item => item.dogs_for_adoption_view)
+            .filter((dog): dog is DbDog => dog !== null)
+            .map(mapDbDogToDogType);
+        
+        setLikedDogs(userLikedDogs);
+        
+        const likedDogIdsSet = new Set(userLikedDogs.map(d => d.id));
+        setSeenDogIds(likedDogIdsSet); // Start seen set with liked dogs
+
+        // Then fetch all dogs and filter out the ones already seen (liked)
+        const { data: allDogsData, error: allDogsError } = await supabase
             .from('dogs_for_adoption_view')
             .select('*');
 
-        if (dogsError) {
-            console.error("Error fetching dogs from Supabase:", dogsError);
-            throw dogsError;
+        if (allDogsError) {
+             console.error("Error fetching all dogs from Supabase:", allDogsError);
+            throw allDogsError;
         }
 
-        const allDogsFromDb = dogsData.map(mapDbDogToDogType);
-        setMasterDogList(allDogsFromDb);
-        let userLikedDogs: Dog[] = [];
-        let likedDogIdsSet = new Set<string>();
+        const allDogs = allDogsData.map(mapDbDogToDogType);
+        setMasterDogList(allDogs);
 
-        if (currentUserId) {
-            const { data: likedDogsData, error: likedDogsError } = await supabase
-                .from('user_dog_likes')
-                .select('dog_id')
-                .eq('user_id', currentUserId);
-
-            if (likedDogsError) {
-                console.error('Error fetching liked dogs:', likedDogsError);
-            } else if (likedDogsData) {
-                likedDogIdsSet = new Set(likedDogsData.map(like => like.dog_id));
-                userLikedDogs = allDogsFromDb.filter(dog => likedDogIdsSet.has(dog.id));
-            }
-        }
-        
-        setLikedDogs(userLikedDogs);
-        const seenIds = new Set(userLikedDogs.map(d => d.id));
-        setSeenDogIds(seenIds);
+        // This will be updated by the useEffect below
+        const unseenDogs = allDogs.filter(dog => !likedDogIdsSet.has(dog.id));
+        setDogsToSwipe(unseenDogs);
 
     } catch (error) {
         console.error("Unhandled error during dog data fetch:", error);
@@ -200,7 +215,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     } finally {
         setIsLoadingDogs(false);
     }
-  }, []);
+}, []);
 
 
   useEffect(() => {
@@ -392,7 +407,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   };
 
   const deleteAccount = async (): Promise<{ error: string | null }> => {
-    const { error } = await supabase.rpc('delete_user_account');
+    const { data, error } = await supabase.rpc('delete_user_account');
     if (error) {
       console.error('Error deleting account:', error);
       return { error: error.message };
