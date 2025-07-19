@@ -24,15 +24,14 @@ interface LiveStreamViewerProps {
 
 export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const playerRef = useRef<any>(null);
+  const playerRef = useRef<any>(null); // This holds the *successful* player instance
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // --- 重要設定 ---
-  // 這是在您本地網路上執行 stream-server.js 的電腦的 IP 位址。
+  // --- IMPORTANT CONFIGURATION ---
   const streamServerIp = '192.168.88.103'; 
   const streamServerPort = 8081;
-  // --- 設定結束 ---
+  // --- CONFIGURATION END ---
 
   useEffect(() => {
     // Reset state for the new dog
@@ -95,6 +94,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
 
     return () => {
       // This cleanup runs for the *previous* effect.
+      // We ONLY destroy the player instance that was successfully stored in the ref.
       if (playerRef.current) {
         try {
           console.log('[LiveStream] Attempting to destroy player instance...');
@@ -103,14 +103,6 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
           console.log('[LiveStream] JSMpeg player instance destroyed.');
         } catch (e) {
           console.error("[LiveStream] Failed to destroy player instance during cleanup:", e);
-        }
-      } else if (player) {
-        // If player was created but never played, it won't be in playerRef.
-        // We still need to attempt to destroy it.
-        try {
-            player.destroy();
-        } catch(e) {
-            console.error("[LiveStream] Failed to destroy un-referenced player instance during cleanup:", e);
         }
       }
     };
