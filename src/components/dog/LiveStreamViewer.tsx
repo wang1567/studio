@@ -14,21 +14,27 @@ interface LiveStreamViewerProps {
 export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   const videoWrapperRef = useRef<HTMLDivElement>(null);
   
-  const webSocketUrl = dog.liveStreamUrl;
-  const isStreamAvailable = webSocketUrl && (webSocketUrl.startsWith('ws://') || webSocketUrl.startsWith('wss://'));
+  const originalWebSocketUrl = dog.liveStreamUrl;
+  const isStreamAvailable = originalWebSocketUrl && (originalWebSocketUrl.startsWith('ws://') || originalWebSocketUrl.startsWith('wss://'));
 
   useEffect(() => {
     let player: any = null;
     
-    if (isStreamAvailable && webSocketUrl && videoWrapperRef.current && typeof window !== 'undefined') {
+    if (isStreamAvailable && originalWebSocketUrl && videoWrapperRef.current && typeof window !== 'undefined') {
       import('jsmpeg-player').then((JSMpeg) => {
         // Correctly reference the Player constructor from the imported module.
         const Player = JSMpeg.Player;
+        
+        // Dynamically adjust protocol based on page security
+        let secureWebSocketUrl = originalWebSocketUrl;
+        if (window.location.protocol === 'https:' && originalWebSocketUrl.startsWith('ws://')) {
+          secureWebSocketUrl = originalWebSocketUrl.replace('ws://', 'wss://');
+        }
 
         if (videoWrapperRef.current) {
-          videoWrapperRef.current.innerHTML = '';
+          videoWrapperRef.current.innerHTML = ''; // Clear previous canvas if any
           try {
-            player = new Player(webSocketUrl, { 
+            player = new Player(secureWebSocketUrl, { 
                 canvas: videoWrapperRef.current.appendChild(document.createElement('canvas')),
                 autoplay: true,
                 audio: false,
@@ -45,7 +51,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
               player.canvas.style.height = '100%';
               player.canvas.style.objectFit = 'cover';
             }
-          } catch(e) {
+          } catch(e: any) {
             console.error("Failed to initialize JSMpeg player:", e);
              if (videoWrapperRef.current) {
                 videoWrapperRef.current.innerHTML = `
@@ -54,7 +60,8 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
                       <p class="text-sm text-muted-foreground">
                         請確認串流伺服器正在執行且位址正確: 
                       </p>
-                      <p class="text-xs text-muted-foreground mt-1 bg-muted px-2 py-1 rounded-md font-mono">${webSocketUrl}</p>
+                      <p class="text-xs text-muted-foreground mt-1 bg-muted px-2 py-1 rounded-md font-mono">${secureWebSocketUrl}</p>
+                       <p class="text-xs text-muted-foreground mt-2">錯誤: ${e.message}</p>
                   </div>
                 `;
             }
@@ -75,7 +82,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         videoWrapperRef.current.innerHTML = '';
       }
     };
-  }, [isStreamAvailable, webSocketUrl, dog.id]);
+  }, [isStreamAvailable, originalWebSocketUrl, dog.id]);
 
 
   return (
