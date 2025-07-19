@@ -48,8 +48,8 @@ export default function ProfilePage() {
   const { register, handleSubmit, formState: { errors }, reset, watch } = useForm<ProfileUpdateFormValues>({
     resolver: zodResolver(profileUpdateSchema),
     defaultValues: {
-      fullName: profile?.fullName || '',
-      avatarUrl: profile?.avatarUrl || '',
+      fullName: '',
+      avatarUrl: '',
     }
   });
   
@@ -78,13 +78,13 @@ export default function ProfilePage() {
   }, [authUser?.created_at, profile?.updatedAt]);
 
   useEffect(() => {
-    if (profile) {
+    if (profile && !isEditing) {
       reset({
         fullName: profile.fullName || '',
         avatarUrl: profile.avatarUrl || '',
       });
     }
-  }, [profile, reset]);
+  }, [profile, reset, isEditing]);
 
   const getInitials = (name?: string | null) => {
     if (!name) return '';
@@ -121,9 +121,23 @@ export default function ProfilePage() {
       });
     }
   };
-
-  if (isLoadingAuth || !authUser || !profile) {
+  
+  if (isLoadingAuth) {
     return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
+        <PawPrint className="w-12 h-12 text-primary animate-spin" />
+        <p className="mt-4 text-lg text-muted-foreground">正在驗證您的身份...</p>
+      </div>
+    );
+  }
+
+  if (!authUser) {
+    // This case should be handled by the useEffect redirect, but it's a good safeguard.
+    return null;
+  }
+  
+  if (!profile) {
+     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
         <PawPrint className="w-12 h-12 text-primary animate-spin" />
         <p className="mt-4 text-lg text-muted-foreground">載入個人資料...</p>
