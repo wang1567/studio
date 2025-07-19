@@ -8,7 +8,7 @@ const app = express();
 const port = 8082;
 
 // --- Configuration ---
-// This URL points to the public TCP address created by the user's local ngrok tunnel.
+// This URL now correctly points to the public TCP address from your local ngrok tunnel.
 const rtspUrl = 'rtsp://0.tcp.jp.ngrok.io:11783/stream1';
 console.log(`[Config] Configured RTSP URL: ${rtspUrl}`);
 
@@ -26,8 +26,14 @@ app.get('/stream', (req, res) => {
     'Expires': '0',
   });
 
+  // More robust FFmpeg command with added parameters for stability
   const ffmpegCommand = [
+    '-hide_banner',          // Suppress printing banner.
     '-rtsp_transport', 'tcp', // Force TCP transport for reliability
+    '-stimeout', '5000000',   // Set a 5-second timeout for the RTSP connection
+    '-fflags', 'nobuffer',   // Reduce latency
+    '-analyzeduration', '1M', // Increase analyze duration
+    '-probesize', '1M',      // Increase probe size
     '-i', rtspUrl,           // Input URL from ngrok
     '-f', 'mjpeg',           // Output format: Motion JPEG
     '-q:v', '7',             // Video quality (lower is better, 2-31)
@@ -37,7 +43,7 @@ app.get('/stream', (req, res) => {
   ];
 
   const ffmpeg = spawn('ffmpeg', ffmpegCommand);
-  console.log('[FFmpeg] Spawning FFmpeg process...');
+  console.log('[FFmpeg] Spawning FFmpeg process with robust parameters...');
 
   ffmpeg.stdout.on('data', (data) => {
     // Write the boundary and headers for each JPEG frame.
