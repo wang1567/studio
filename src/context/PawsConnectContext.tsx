@@ -29,6 +29,7 @@ interface PawsConnectContextType {
   signUp: (email: string, password: string, role: UserRole, fullName?: string | null) => Promise<{ user: SupabaseUser | null; error: string | null }>;
   logout: () => Promise<{ error: string | null }>;
   updateProfile: (updates: { fullName?: string | null; avatarUrl?: string | null }) => Promise<{ success: boolean; error?: string | null; updatedProfile?: Profile | null }>;
+  deleteAccount: () => Promise<{ error: string | null }>;
 }
 
 const PawsConnectContext = React.createContext<PawsConnectContextType | undefined>(undefined);
@@ -388,6 +389,17 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     }
   };
 
+  const deleteAccount = async (): Promise<{ error: string | null }> => {
+    const { error } = await supabase.rpc('delete_user_account');
+    if (error) {
+      console.error('Error deleting account:', error);
+      return { error: error.message };
+    }
+    // The onAuthStateChange listener will handle logging out the user state
+    return { error: null };
+  };
+
+
   return (
     <PawsConnectContext.Provider value={{ 
         dogsToSwipe, 
@@ -405,7 +417,8 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         login,
         signUp,
         logout,
-        updateProfile
+        updateProfile,
+        deleteAccount
     }}>
       {children}
     </PawsConnectContext.Provider>
