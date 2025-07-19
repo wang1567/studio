@@ -142,44 +142,56 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   useEffect(() => {
     const initializeSession = async () => {
       setIsLoadingAuth(true);
-      const { data: { session: initialSession }, error } = await supabase.auth.getSession();
-      
-      if (error) {
-        console.error("Error getting initial session:", error);
+      try {
+        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+        
+        // This error is expected if the user is not logged in or token is invalid.
+        // We log it but don't treat it as a critical failure.
+        if (error) {
+          console.log("Info: Error getting initial session:", error.message);
+        }
+        
+        const currentUser = initialSession?.user ?? null;
+        setSession(initialSession);
+        setUser(currentUser);
+        
+        if (currentUser) {
+          await fetchProfileAndSet(currentUser);
+        } else {
+          setProfile(null);
+        }
+
+      } catch (e: any) {
+         console.error("Critical error during session initialization:", e);
+         setSession(null);
+         setUser(null);
+         setProfile(null);
+      } finally {
+        setIsLoadingAuth(false);
       }
-      
-      const currentUser = initialSession?.user ?? null;
-      setSession(initialSession);
-      setUser(currentUser);
-      
-      // Fetch profile concurrently with session check.
-      if (currentUser) {
-        await fetchProfileAndSet(currentUser);
-      }
-      
-      setIsLoadingAuth(false);
     };
 
     initializeSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (_event, newSession) => {
-        // Only set loading if the user status actually changes.
         const currentUser = newSession?.user ?? null;
         const previousUserId = user?.id;
 
+        // Only show loading state if the user's login status actually changes.
         if (currentUser?.id !== previousUserId) {
           setIsLoadingAuth(true);
         }
         
-        resetDogState();
         setSession(newSession);
         setUser(currentUser);
         
         if (currentUser) {
             await fetchProfileAndSet(currentUser);
         } else {
+            // If user logs out, reset all state.
             setProfile(null);
+            resetDogState();
         }
 
         if (currentUser?.id !== previousUserId) {
