@@ -9,7 +9,6 @@ const port = 8082; // This server runs on your LOCAL machine.
 
 // --- LOCAL Configuration ---
 // This URL points to your LOCAL camera's RTSP stream.
-// Make sure to replace 'wang1567:15671567' with your actual username and password.
 const rtspUrl = 'rtsp://wang1567:15671567@192.168.88.103:554/stream1';
 console.log(`[Config] Attempting to connect to LOCAL RTSP URL: ${rtspUrl.replace(/:.*@/, '://****:****@')}`);
 
