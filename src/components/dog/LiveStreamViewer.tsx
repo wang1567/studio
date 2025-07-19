@@ -40,51 +40,27 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
     setError(null);
     setIsLoading(true);
 
-    const cleanup = () => {
-      if (playerRef.current) {
-        try {
-          console.log('[LiveStream] Attempting to destroy player instance...');
-          playerRef.current.destroy();
-          playerRef.current = null;
-          console.log('[LiveStream] JSMpeg player instance destroyed.');
-        } catch (e) {
-          console.error("[LiveStream] Failed to destroy player instance during cleanup:", e);
-        }
-      }
-    };
-
-    // If the library hasn't loaded yet, wait.
-    if (!JSMpeg) {
-        const timeoutId = setTimeout(() => {
-            // Trigger a re-render to retry
-            setIsLoading(prev => !prev); 
-            setIsLoading(prev => !prev);
-        }, 200);
-        return () => clearTimeout(timeoutId);
-    }
-    
-    // Check if canvas is ready
-    if (!canvasRef.current) {
-        console.warn("[LiveStream] Canvas ref is not ready yet.");
-        return;
-    }
-
     let webSocketUrl = `ws://${streamServerIp}:${streamServerPort}`;
-    // If the page is loaded over HTTPS, we must use WSS.
     if (window.location.protocol === 'https:') {
       webSocketUrl = `wss://${streamServerIp}:${streamServerPort}`;
     }
 
-    console.log(`[LiveStream] Preparing to initialize JSMpeg player for dog ${dog.id}. Target URL: ${webSocketUrl}`);
+    // If the library hasn't loaded yet, or canvas isn't ready, wait.
+    if (!JSMpeg || !canvasRef.current) {
+        const timeoutId = setTimeout(() => setIsLoading(prev => !prev), 200); // Trigger re-render to retry
+        return () => clearTimeout(timeoutId);
+    }
+    
+    let player: any;
     
     try {
-      // Ensure we have the correct constructor
+      console.log(`[LiveStream] Preparing to initialize JSMpeg player for dog ${dog.id}. Target URL: ${webSocketUrl}`);
       const Player = JSMpeg.Player;
       if (!Player) {
         throw new Error("JSMpeg.Player is not available. The module might not have loaded correctly.");
       }
       
-      const player = new Player(webSocketUrl, {
+      player = new Player(webSocketUrl, {
         canvas: canvasRef.current,
         autoplay: true,
         audio: false,
@@ -93,6 +69,8 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
             console.log(`[LiveStream] Playback started for: ${webSocketUrl}`);
             setIsLoading(false);
             setError(null);
+            // Only assign to ref once we are sure it's a valid, playable instance
+            playerRef.current = player;
         },
         onStalled: () => {
             console.warn('[LiveStream] Player stalled. Waiting for data...');
@@ -109,15 +87,26 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         }
       });
       
-      playerRef.current = player;
-      
     } catch (e: any) {
       console.error("[LiveStream] Failed to initialize JSMpeg player:", e);
       setError(`建立播放器時發生錯誤: ${e.message}`);
       setIsLoading(false);
     }
 
-    return cleanup;
+    return () => {
+      // This cleanup runs for the *previous* effect.
+      // playerRef.current will hold the successfully played instance.
+      if (playerRef.current) {
+        try {
+          console.log('[LiveStream] Attempting to destroy player instance...');
+          playerRef.current.destroy();
+          playerRef.current = null;
+          console.log('[LiveStream] JSMpeg player instance destroyed.');
+        } catch (e) {
+          console.error("[LiveStream] Failed to destroy player instance during cleanup:", e);
+        }
+      }
+    };
   }, [dog.id]); // Re-run effect when the dog changes.
 
   return (
