@@ -8,35 +8,27 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { DogDetailsModal } from '@/components/dog/DogDetailsModal';
-import { Heart, MessageSquare, Video, Info } from 'lucide-react';
+import { Heart, Info } from 'lucide-react';
 
 export default function MatchesPage() {
   const { likedDogs, getDogById } = usePawsConnect();
   const [selectedDogDetails, setSelectedDogDetails] = useState<Dog | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [initialModalTab, setInitialModalTab] = useState<'details' | 'live'>('details');
 
-  const handleShowDetails = (dogId: string, tab: 'details' | 'live' = 'details') => {
+  const handleShowDetails = (dogId: string) => {
     const dog = getDogById(dogId);
     if (dog) {
-      // First, set the dog details and the desired tab.
       setSelectedDogDetails(dog);
-      setInitialModalTab(tab);
-      // Then, open the modal. This avoids race conditions.
-      setIsModalOpen(true);
     }
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    // It's good practice to clear the selected dog after the modal closes
-    // to ensure a clean state for the next opening.
     setTimeout(() => {
         setSelectedDogDetails(null);
-    }, 300); // Delay to allow for closing animation
+    }, 300);
   };
   
-  // This effect ensures that the modal is only opened after the dog details have been set.
   useEffect(() => {
     if (selectedDogDetails) {
       setIsModalOpen(true);
@@ -77,22 +69,15 @@ export default function MatchesPage() {
               <CardDescription className="text-sm text-muted-foreground">{dog.breed}, {dog.age} 歲</CardDescription>
               <p className="mt-2 text-sm line-clamp-2">{dog.description}</p>
             </CardContent>
-            <CardFooter className="p-4 border-t grid grid-cols-2 gap-2">
-              <Button variant="outline" onClick={() => handleShowDetails(dog.id, 'details')} className="w-full">
+            <CardFooter className="p-4 border-t">
+              <Button variant="outline" onClick={() => handleShowDetails(dog.id)} className="w-full">
                 <Info className="mr-2 h-4 w-4" /> 詳細資料
-              </Button>
-              <Button 
-                onClick={() => handleShowDetails(dog.id, 'live')}
-                className="w-full bg-accent hover:bg-accent/90 text-accent-foreground"
-              >
-                <Video className="mr-2 h-4 w-4" /> 即時影像
               </Button>
             </CardFooter>
           </Card>
         ))}
       </div>
-      {/* We ensure the modal is only rendered when it's meant to be open, passing the definite dog object */}
-      <DogDetailsModal dog={selectedDogDetails} isOpen={isModalOpen} onClose={handleCloseModal} initialTab={initialModalTab} />
+      <DogDetailsModal dog={selectedDogDetails} isOpen={isModalOpen} onClose={handleCloseModal} />
     </div>
   );
 }
