@@ -14,7 +14,7 @@ if (typeof window !== 'undefined') {
   import('jsmpeg-player').then(module => {
     JSMpeg = module.default || module;
   }).catch(err => {
-    console.error("Failed to load jsmpeg-player:", err);
+    console.error("無法載入 jsmpeg-player:", err);
   });
 }
 
@@ -33,12 +33,13 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   const streamServerPort = 8081;
 
   useEffect(() => {
-    if (!isTabActive) {
-      if (playerRef.current && playerRef.current.source) {
+    // 只有當分頁活躍且 JSMpeg 函式庫已載入時才執行
+    if (!isTabActive || !JSMpeg) {
+      if (playerRef.current) {
         try {
           playerRef.current.destroy();
         } catch (e) {
-            // It's safe to ignore destroy errors here
+          // 在銷毀時忽略錯誤是安全的
         }
         playerRef.current = null;
       }
@@ -51,24 +52,19 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
     const streamServerIp = window.location.hostname;
     const webSocketUrl = `ws://${streamServerIp}:${streamServerPort}`;
 
-    const libraryLoadTimeout = setTimeout(() => {
-        if (!JSMpeg) {
-          setError("播放器程式庫載入失敗，請重新整理頁面。");
-          setIsLoading(false);
-        }
-      }, 5000);
-
-    if (!JSMpeg || !canvasRef.current) {
-        return () => clearTimeout(libraryLoadTimeout);
-    }
-    clearTimeout(libraryLoadTimeout);
-    
     let player: any;
+
+    // 確保 canvas 已經準備好
+    if (!canvasRef.current) {
+        setError("Canvas 元素尚未準備好。");
+        setIsLoading(false);
+        return;
+    }
     
     try {
       const Player = JSMpeg.Player;
       if (!Player) {
-        throw new Error("JSMpeg.Player is not available.");
+        throw new Error("JSMpeg.Player 尚未準備好。");
       }
       
       player = new Player(webSocketUrl, {
@@ -79,41 +75,37 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         onPlay: () => {
             setIsLoading(false);
             setError(null);
-            playerRef.current = player;
         },
         onStalled: () => {
             setIsLoading(true);
         },
         onError: (e: any) => {
-            const errorMessage = e?.message || (typeof e === 'string' ? e : '未知串流錯誤');
+            const errorMessage = e?.message || (typeof e === 'string' ? e : '未知錯誤');
             setError(`無法連接至影像串流 (${errorMessage})。請確認後端伺服器是否正常運作，以及防火牆設定。`);
             setIsLoading(false);
         }
       });
       
+      playerRef.current = player;
+      
     } catch (e: any) {
-      setError(`建立播放器時發生嚴重錯誤: ${e.message}`);
+      setError(`建立播放器時發生錯誤: ${e.message}`);
       setIsLoading(false);
     }
 
+    // 清理函式
     return () => {
-      if (playerRef.current && playerRef.current.source) {
+      if (playerRef.current && typeof playerRef.current.destroy === 'function') {
         try {
           playerRef.current.destroy();
         } catch (e) {
-            console.error("[LiveStream] Failed to destroy referenced player instance during cleanup:", e);
+           console.error("[LiveStream] 在清理期間銷毀播放器時發生錯誤:", e);
         } finally {
             playerRef.current = null;
         }
-      } else if (player) {
-         try {
-            player.destroy();
-        } catch(e) {
-            // Ignore error
-        }
       }
     };
-  }, [dog.id, dog.name, isTabActive]);
+  }, [dog.id, isTabActive]);
 
   return (
     <Card className="shadow-lg h-full flex flex-col">
