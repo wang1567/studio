@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePawsConnect } from '@/context/PawsConnectContext';
 import type { Dog } from '@/types';
 import Image from 'next/image';
@@ -19,16 +19,29 @@ export default function MatchesPage() {
   const handleShowDetails = (dogId: string, tab: 'details' | 'live' = 'details') => {
     const dog = getDogById(dogId);
     if (dog) {
+      // First, set the dog details and the desired tab.
       setSelectedDogDetails(dog);
       setInitialModalTab(tab);
+      // Then, open the modal. This avoids race conditions.
       setIsModalOpen(true);
     }
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setSelectedDogDetails(null);
+    // It's good practice to clear the selected dog after the modal closes
+    // to ensure a clean state for the next opening.
+    setTimeout(() => {
+        setSelectedDogDetails(null);
+    }, 300); // Delay to allow for closing animation
   };
+  
+  // This effect ensures that the modal is only opened after the dog details have been set.
+  useEffect(() => {
+    if (selectedDogDetails) {
+      setIsModalOpen(true);
+    }
+  }, [selectedDogDetails]);
 
   if (likedDogs.length === 0) {
     return (
@@ -78,6 +91,7 @@ export default function MatchesPage() {
           </Card>
         ))}
       </div>
+      {/* We ensure the modal is only rendered when it's meant to be open, passing the definite dog object */}
       <DogDetailsModal dog={selectedDogDetails} isOpen={isModalOpen} onClose={handleCloseModal} initialTab={initialModalTab} />
     </div>
   );
