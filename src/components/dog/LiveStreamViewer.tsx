@@ -27,6 +27,8 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         const Player = JSMpeg.default || JSMpeg.Player || JSMpeg;
 
         if (videoWrapperRef.current) {
+          // Clear previous canvas if any
+          videoWrapperRef.current.innerHTML = '';
           player = new Player(webSocketUrl, { 
               canvas: videoWrapperRef.current.appendChild(document.createElement('canvas')),
               autoplay: true,
@@ -57,7 +59,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         videoWrapperRef.current.innerHTML = '';
       }
     };
-  }, [isStreamAvailable, webSocketUrl]);
+  }, [isStreamAvailable, webSocketUrl, dog.id]); // Add dog.id to dependencies to re-trigger on dog change
 
 
   return (
