@@ -188,9 +188,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         setLikedDogs(userLikedDogs);
         const seenIds = new Set(userLikedDogs.map(d => d.id));
         setSeenDogIds(seenIds);
-        
-        const dogsForSwiping = allDogsFromDb.filter(dog => !seenIds.has(dog.id));
-        setDogsToSwipe(dogsForSwiping);
 
     } catch (error) {
         console.error("Unhandled error during dog data fetch:", error);
@@ -244,7 +241,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         .insert({ user_id: user.id, dog_id: dogId });
       
       if (insertError) {
-        if (insertError.code !== '23505') {
+        if (insertError.code !== '23505') { // '23505' is the code for unique_violation, we can ignore it
             console.error("Error saving like to Supabase:", insertError);
             toast({
               variant: "destructive",
@@ -257,6 +254,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
               newSet.delete(dogId);
               return newSet;
             });
+            return; // Exit if there was a critical error
         }
       }
 
