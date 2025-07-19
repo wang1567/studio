@@ -1,3 +1,4 @@
+
 const Stream = require('node-rtsp-stream');
 
 // --- IMPORTANT ---
@@ -32,7 +33,7 @@ stream.on('ffmpegError', (data) => {
 console.log(`[Server] WebSocket/MJPEG stream server is starting on port ${streamPort}`);
 console.log(`[Server] Once running, the MJPEG stream will be available at: http://localhost:${streamPort}/${streamName}.mjpg`);
 console.log("\n--- NGROK INSTRUCTIONS ---");
-console.log(`1. In another terminal, run: ngrok http ${streamPort} --host-header="localhost:${streamPort}"`);
+console.log("1. In another terminal, run: ngrok http ${streamPort} --host-header=\"localhost:${streamPort}\"");
 console.log("2. Copy the 'Forwarding' URL (e.g., https://abcd-1234.ngrok-free.app).");
 console.log("3. *** CRITICAL STEP ***: Open that URL + '/live_stream.mjpg' in your BROWSER to authorize and test.");
 console.log("   Example: https://abcd-1234.ngrok-free.app/live_stream.mjpg");
