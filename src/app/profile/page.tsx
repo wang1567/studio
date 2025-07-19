@@ -190,18 +190,18 @@ export default function ProfilePage() {
             </form>
           ) : (
             <>
-              <div className="flex justify-around text-center">
-                <div>
+              <div className="flex justify-around text-center border-b pb-6">
+                <div className="space-y-1">
                   <p className="text-2xl font-bold text-primary">{likedDogs.length}</p>
-                  <p className="text-sm text-muted-foreground">喜歡的狗狗</p>
+                  <p className="text-sm text-muted-foreground flex items-center gap-1.5"><Heart className="h-4 w-4" /> 喜歡的狗狗</p>
                 </div>
-                <div>
+                <div className="space-y-1">
                   <p className="text-2xl font-bold text-primary">0</p>
-                  <p className="text-sm text-muted-foreground">待領養</p>
+                  <p className="text-sm text-muted-foreground flex items-center gap-1.5"><PawPrint className="h-4 w-4" /> 待領養</p>
                 </div>
               </div>
               
-              <div className="space-y-3">
+              <div className="space-y-3 pt-2">
                 <Button variant="outline" className="w-full justify-start" onClick={() => handleEditToggle(true)}>
                   <Edit3 className="mr-2 h-4 w-4 text-primary" /> 編輯個人資料
                 </Button>
