@@ -22,10 +22,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 
 export default function SettingsPage() {
-  const { user, deleteAccount } = usePawsConnect();
+  const { user, deleteAccount, sendPasswordResetEmail } = usePawsConnect();
   const { toast } = useToast();
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   const handleDeleteAccount = async () => {
     if (!user) {
@@ -49,6 +50,29 @@ export default function SettingsPage() {
       });
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!user?.email) {
+      toast({ title: "錯誤", description: "無法取得您的電子郵件地址。", variant: "destructive" });
+      return;
+    }
+    setIsSendingReset(true);
+    try {
+      const { error } = await sendPasswordResetEmail(user.email);
+       if (error) {
+        throw new Error(error);
+      }
+      toast({ title: "郵件已寄出", description: "密碼重設指示已寄送到您的電子信箱。" });
+    } catch (e: any) {
+       toast({
+        title: "寄送失敗",
+        description: e.message || "寄送密碼重設郵件時發生錯誤。",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingReset(false);
     }
   };
 
@@ -84,7 +108,10 @@ export default function SettingsPage() {
            <div>
              <h3 className="font-semibold">更改密碼</h3>
              <p className="text-sm text-muted-foreground mb-2">我們將寄送一封密碼重設郵件給您。</p>
-             <Button variant="outline" disabled>寄送重設郵件 (即將推出)</Button>
+             <Button variant="outline" onClick={handlePasswordReset} disabled={isSendingReset}>
+                {isSendingReset && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isSendingReset ? "寄送中..." : "寄送重設郵件"}
+             </Button>
            </div>
             <div>
              <h3 className="font-semibold text-destructive">刪除帳戶</h3>

@@ -30,6 +30,7 @@ interface PawsConnectContextType {
   logout: () => Promise<{ error: string | null }>;
   updateProfile: (updates: { fullName?: string | null; avatarUrl?: string | null }) => Promise<{ success: boolean; error?: string | null; updatedProfile?: Profile | null }>;
   deleteAccount: () => Promise<{ error: string | null }>;
+  sendPasswordResetEmail: (email: string) => Promise<{ error: string | null }>;
 }
 
 const PawsConnectContext = React.createContext<PawsConnectContextType | undefined>(undefined);
@@ -399,6 +400,17 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     return { error: null };
   };
 
+  const sendPasswordResetEmail = async (email: string): Promise<{ error: string | null }> => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/`, // Or a specific password reset page
+    });
+    if (error) {
+      console.error('Error sending password reset email:', error);
+      return { error: error.message };
+    }
+    return { error: null };
+  };
+
 
   return (
     <PawsConnectContext.Provider value={{ 
@@ -418,7 +430,8 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         signUp,
         logout,
         updateProfile,
-        deleteAccount
+        deleteAccount,
+        sendPasswordResetEmail
     }}>
       {children}
     </PawsConnectContext.Provider>
