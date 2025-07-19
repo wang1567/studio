@@ -160,18 +160,19 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   const loadInitialDogData = useCallback(async (currentUserId: string | null) => {
     setIsLoadingDogs(true);
     if (!currentUserId) {
+        setMasterDogList([]);
+        setDogsToSwipe([]);
+        setLikedDogs([]);
         setIsLoadingDogs(false);
         return;
     }
 
     try {
-        // Fetch liked dogs first using a join
+        // Fetch liked dogs using a join for the "My Matches" page
         const { data: likedDogsData, error: likedDogsError } = await supabase
             .from('user_dog_likes')
             .select(`
-                dogs_for_adoption_view (
-                    *
-                )
+                dogs_for_adoption_view (*)
             `)
             .eq('user_id', currentUserId);
 
@@ -179,18 +180,19 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
             console.error("Error fetching liked dogs from Supabase:", likedDogsError);
             throw likedDogsError;
         }
-
+        
         const userLikedDogs = (likedDogsData || [])
             .map(item => item.dogs_for_adoption_view)
-            .filter((dog): dog is DbDog => dog !== null)
+            // Ensure the nested object is not null
+            .filter((dog): dog is DbDog => dog !== null) 
             .map(mapDbDogToDogType);
         
         setLikedDogs(userLikedDogs);
         
+        // Populate the seenDogIds set with the IDs of liked dogs
         const likedDogIdsSet = new Set(userLikedDogs.map(d => d.id));
-        setSeenDogIds(likedDogIdsSet); // Start seen set with liked dogs
-
-        // Then fetch all dogs and filter out the ones already seen (liked)
+        
+        // Then fetch all dogs for the swipe interface, excluding those already liked
         const { data: allDogsData, error: allDogsError } = await supabase
             .from('dogs_for_adoption_view')
             .select('*');
@@ -203,26 +205,34 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         const allDogs = allDogsData.map(mapDbDogToDogType);
         setMasterDogList(allDogs);
 
-        // This will be updated by the useEffect below
         const unseenDogs = allDogs.filter(dog => !likedDogIdsSet.has(dog.id));
         setDogsToSwipe(unseenDogs);
+        setSeenDogIds(likedDogIdsSet); // Final seen set is just the liked dogs
 
     } catch (error) {
         console.error("Unhandled error during dog data fetch:", error);
         setMasterDogList([]);
         setDogsToSwipe([]);
         setLikedDogs([]);
+        toast({
+            title: "資料載入失敗",
+            description: "無法載入狗狗資料，請稍後重新整理。",
+            variant: "destructive",
+        });
     } finally {
         setIsLoadingDogs(false);
     }
-}, []);
+}, [toast]);
 
 
   useEffect(() => {
-    if (!isLoadingAuth) {
-      loadInitialDogData(user?.id ?? null);
+    if (!isLoadingAuth && user) {
+      loadInitialDogData(user.id);
+    } else if (!isLoadingAuth && !user) {
+      setIsLoadingDogs(false); // Not logged in, so not loading dogs.
+      resetDogState();
     }
-  }, [isLoadingAuth, user, loadInitialDogData]);
+  }, [isLoadingAuth, user, loadInitialDogData, resetDogState]);
 
 
   useEffect(() => {
@@ -304,7 +314,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   };
   
   const getDogById = (dogId: string): Dog | undefined => {
-    return masterDogList.find(dog => dog.id === dogId);
+    return masterDogList.find(dog => dog.id === dogId) || likedDogs.find(dog => dog.id === dogId);
   };
 
   const login = async (email: string, password: string): Promise<{ session: SupabaseSession | null; error: string | null }> => {
@@ -358,6 +368,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       setIsLoadingAuth(false);
       return { error: error.message || '登出時發生錯誤。' };
     }
+    // Auth listener will handle state reset
     return { error: null };
   };
 
@@ -471,3 +482,5 @@ export const usePawsConnect = () => {
   }
   return context;
 };
+
+    
