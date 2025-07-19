@@ -9,7 +9,9 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/stream',
-        destination: 'http://localhost:8082/stream',
+        // 直接將請求代理到公開的 ngrok TCP 位址。
+        // 注意：ngrok 免費方案的位址每次重啟都會改變。
+        destination: 'http://0.tcp.jp.ngrok.io:11783/',
       },
     ]
   },

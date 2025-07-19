@@ -12,7 +12,7 @@ interface LiveStreamViewerProps {
 export const LiveStreamViewer = ({ streamUrl }: LiveStreamViewerProps) => {
   const [streamStatus, setStreamStatus] = useState<'loading' | 'active' | 'error'>('loading');
 
-  // The actual stream path is now handled by Next.js rewrites.
+  // The actual stream path is handled by the Next.js rewrite in next.config.ts
   const streamPath = '/stream';
 
   const handleStreamError = () => {
@@ -33,13 +33,15 @@ export const LiveStreamViewer = ({ streamUrl }: LiveStreamViewerProps) => {
         </div>
       )}
 
-      {/* The image tag is always present but hidden until loaded to handle events correctly */}
+      {/* The image tag is now always present but hidden until loaded to handle events correctly */}
       <img
         src={streamPath}
         alt="Live Stream"
         onError={handleStreamError}
         onLoad={handleStreamLoad}
-        className={`w-full max-w-full max-h-full rounded-md object-contain ${streamStatus === 'active' ? 'block' : 'hidden'}`}
+        // Use inline style to avoid Tailwind purging issues and ensure visibility is correct
+        style={{ display: streamStatus === 'active' ? 'block' : 'none' }}
+        className="w-full max-w-full max-h-full rounded-md object-contain"
       />
 
       {streamStatus === 'error' && (
@@ -48,7 +50,7 @@ export const LiveStreamViewer = ({ streamUrl }: LiveStreamViewerProps) => {
           <AlertTitle>串流連線失敗</AlertTitle>
           <AlertDescription>
             <p>無法連接至即時影像。</p>
-            <p className="mt-2">這可能是因為後端 `stream-server.js` 服務未啟動，或 ngrok 隧道已中斷。請檢查終端機中的服務狀態。</p>
+            <p className="mt-2">這可能是因為您本地電腦上的 `ngrok` 隧道已中斷，或是攝影機未開啟。請檢查您本地的終端機狀態。</p>
           </AlertDescription>
         </Alert>
       )}
