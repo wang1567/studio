@@ -8,8 +8,10 @@ const app = express();
 app.use(cors({ origin: '*' }));
 
 // The RTSP URL of your camera stream.
-// Replace with your actual RTSP URL if different.
-const rtspUrl = 'rtsp://wang1567:15671567@192.168.88.101:554/stream1';
+// It's HIGHLY recommended to use an environment variable for this.
+// Your camera's RTSP URL must be accessible from where this server is running.
+// If this server is in the cloud, a private IP (e.g., 192.168.x.x) will NOT work.
+const rtspUrl = process.env.RTSP_URL || 'rtsp://wang1567:15671567@192.168.88.101:554/stream1';
 console.log(`[Config] Configured RTSP URL: ${rtspUrl}`);
 
 // Endpoint for the MJPEG stream

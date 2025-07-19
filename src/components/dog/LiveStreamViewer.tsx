@@ -74,8 +74,12 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
                 <Alert variant="destructive" className="mt-4 text-left">
                   <AlertTitle>串流連線失敗</AlertTitle>
                   <AlertDescription>
-                    <p>無法連接至即時影像。請確認後端 `stream-server.js` 服務已在終端機中啟動，且沒有顯示任何錯誤訊息。</p>
-                     <p className="mt-2">如果後端服務正常，請確認瀏覽器允許載入不安全的內容。</p>
+                    <p>無法連接至即時影像。這通常是網路設定問題：</p>
+                    <ul className="list-disc pl-5 mt-2 space-y-1">
+                      <li>**後端服務未啟動**：請確認 `stream-server.js` 服務已在終端機中啟動且無錯誤。</li>
+                      <li>**RTSP位址問題**：後端伺服器無法存取攝影機的RTSP位址。如果您的攝影機在私有內網 (如 `192.168.x.x`)，雲端開發環境將無法連接。您需要提供一個公開的RTSP位址。</li>
+                      <li>**瀏覽器安全設定**：請確認瀏覽器已允許載入不安全的內容。</li>
+                    </ul>
                   </AlertDescription>
                 </Alert>
             </div>
