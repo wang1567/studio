@@ -13,6 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from 'next/link';
+import { TabsContextProvider } from './TabsContext'; // Import provider
 
 interface DogDetailsModalProps {
   dog: Dog | null;
@@ -52,72 +53,74 @@ export const DogDetailsModal = ({ dog, isOpen, onClose, initialTab = 'details' }
           </div>
         </DialogHeader>
         
-        <Tabs defaultValue={initialTab} key={dog.id} className="flex-grow flex flex-col min-h-0">
-            <TabsList className="grid w-full grid-cols-2 mx-auto sticky top-0 bg-background z-10 rounded-none border-b px-6 py-2 h-auto">
-                <TabsTrigger value="details" className="gap-2">
-                    <FileText className="h-5 w-5"/> 詳細資料
-                </TabsTrigger>
-                <TabsTrigger value="live" className="gap-2">
-                    <Video className="h-5 w-5"/> 即時影像
-                </TabsTrigger>
-            </TabsList>
-            
-            <ScrollArea className="flex-grow overflow-y-auto">
-                <TabsContent value="details" className="p-6 mt-0">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Left Column: Photos and Basic Info */}
-                        <div className="space-y-4">
-                            <Carousel className="w-full rounded-lg overflow-hidden shadow-lg">
-                                <CarouselContent>
-                                {dogPhotos.map((photo, index) => (
-                                    <CarouselItem key={index}>
-                                    <div className="aspect-w-4 aspect-h-3">
-                                        <Image 
-                                        src={photo || 'https://placehold.co/600x400.png'} 
-                                        alt={`${dog.name} 照片 ${index + 1}`} 
-                                        width={600}
-                                        height={400}
-                                        className="object-cover w-full h-full"
-                                        data-ai-hint="dog" 
-                                        />
+        <TabsContextProvider initialTab={initialTab}>
+            <Tabs defaultValue={initialTab} key={dog.id} className="flex-grow flex flex-col min-h-0">
+                <TabsList className="grid w-full grid-cols-2 mx-auto sticky top-0 bg-background z-10 rounded-none border-b px-6 py-2 h-auto">
+                    <TabsTrigger value="details" className="gap-2">
+                        <FileText className="h-5 w-5"/> 詳細資料
+                    </TabsTrigger>
+                    <TabsTrigger value="live" className="gap-2">
+                        <Video className="h-5 w-5"/> 即時影像
+                    </TabsTrigger>
+                </TabsList>
+                
+                <ScrollArea className="flex-grow overflow-y-auto">
+                    <TabsContent value="details" className="p-6 mt-0">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Left Column: Photos and Basic Info */}
+                            <div className="space-y-4">
+                                <Carousel className="w-full rounded-lg overflow-hidden shadow-lg">
+                                    <CarouselContent>
+                                    {dogPhotos.map((photo, index) => (
+                                        <CarouselItem key={index}>
+                                        <div className="aspect-w-4 aspect-h-3">
+                                            <Image 
+                                            src={photo || 'https://placehold.co/600x400.png'} 
+                                            alt={`${dog.name} 照片 ${index + 1}`} 
+                                            width={600}
+                                            height={400}
+                                            className="object-cover w-full h-full"
+                                            data-ai-hint="dog" 
+                                            />
+                                        </div>
+                                        </CarouselItem>
+                                    ))}
+                                    </CarouselContent>
+                                    {dogPhotos.length > 1 && (
+                                    <>
+                                        <CarouselPrevious className="absolute left-2 top-1/2 -translate-y-1/2" />
+                                        <CarouselNext className="absolute right-2 top-1/2 -translate-y-1/2" />
+                                    </>
+                                    )}
+                                </Carousel>
+                                
+                                <div className="space-y-2">
+                                    <p className="text-foreground/80">{dog.description}</p>
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <MapPin className="h-4 w-4 text-primary" />
+                                    <span>{dog.location}</span>
                                     </div>
-                                    </CarouselItem>
-                                ))}
-                                </CarouselContent>
-                                {dogPhotos.length > 1 && (
-                                <>
-                                    <CarouselPrevious className="absolute left-2 top-1/2 -translate-y-1/2" />
-                                    <CarouselNext className="absolute right-2 top-1/2 -translate-y-1/2" />
-                                </>
-                                )}
-                            </Carousel>
-                            
-                            <div className="space-y-2">
-                                <p className="text-foreground/80">{dog.description}</p>
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <MapPin className="h-4 w-4 text-primary" />
-                                <span>{dog.location}</span>
-                                </div>
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                {dog.personalityTraits && dog.personalityTraits.map(trait => (
-                                    <Badge key={trait} variant="secondary" className="bg-accent/20 text-accent-foreground">{trait}</Badge>
-                                ))}
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                    {dog.personalityTraits && dog.personalityTraits.map(trait => (
+                                        <Badge key={trait} variant="secondary" className="bg-accent/20 text-accent-foreground">{trait}</Badge>
+                                    ))}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Right Column: Records */}
-                        <div className="space-y-6">
-                            <HealthRecordsDisplay dog={dog} />
+                            {/* Right Column: Records */}
+                            <div className="space-y-6">
+                                <HealthRecordsDisplay dog={dog} />
+                            </div>
                         </div>
-                    </div>
-                </TabsContent>
-                
-                <TabsContent value="live" className="p-6 mt-0 h-full">
-                    <LiveStreamViewer dog={dog} />
-                </TabsContent>
-            </ScrollArea>
-        </Tabs>
+                    </TabsContent>
+                    
+                    <TabsContent value="live" className="p-6 mt-0 h-full">
+                        <LiveStreamViewer dog={dog} />
+                    </TabsContent>
+                </ScrollArea>
+            </Tabs>
+        </TabsContextProvider>
 
         <div className="p-4 border-t bg-secondary/30 flex justify-end gap-3 mt-auto">
             <Button variant="outline" onClick={onClose}>關閉</Button>

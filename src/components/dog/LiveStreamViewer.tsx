@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Video, WifiOff, Loader2 } from 'lucide-react';
 import React, { useRef, useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { useTabsContext } from './TabsContext'; // We will create this
 
 // We are dynamically importing jsmpeg-player only on the client-side.
 let JSMpeg: any = null;
@@ -27,6 +28,8 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   const playerRef = useRef<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { activeTab } = useTabsContext();
+  const isTabActive = activeTab === 'live';
 
   // --- IMPORTANT CONFIGURATION ---
   // This must be the PUBLIC IP or domain name of the machine running stream-server.js
@@ -35,13 +38,26 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   // --- CONFIGURATION END ---
 
   useEffect(() => {
-    // Reset state for the new dog
+    // CRITICAL: Only run logic if this tab is active.
+    if (!isTabActive) {
+      // If tab becomes inactive, ensure player is destroyed.
+      if (playerRef.current) {
+        try {
+          playerRef.current.destroy();
+        } catch (e) {
+            // Ignore errors during destroy
+        }
+        playerRef.current = null;
+      }
+      return;
+    }
+
+    // Reset state for the new dog or when tab becomes active
     setError(null);
     setIsLoading(true);
-    console.log(`[LiveStream] useEffect triggered for dog: ${dog.name} (${dog.id}). State reset.`);
+    console.log(`[LiveStream] Tab active. useEffect triggered for dog: ${dog.name} (${dog.id}).`);
 
-    // ALWAYS use ws://. The browser might block it on an https site,
-    // requiring the user to manually allow "insecure content".
+    // Use ws:// as it's the only protocol supported by the simple backend.
     const webSocketUrl = `ws://${streamServerIp}:${streamServerPort}`;
     console.log(`[LiveStream] Attempting to connect to: ${webSocketUrl}`);
 
@@ -90,7 +106,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         onError: (e: any) => {
             const errorMessage = e?.message || (typeof e === 'string' ? e : '未知串流錯誤');
             console.error('[LiveStream] FATAL: Player reported an error:', errorMessage, e);
-            setError(`無法連接至影像串流：${errorMessage}。請確認後端伺服器是否正常運作，或在瀏覽器設定中允許不安全的內容。`);
+            setError(`無法連接至影像串流。請確認後端伺服器是否正常運作，並在瀏覽器設定中允許不安全的內容。`);
             setIsLoading(false);
         }
       });
@@ -104,9 +120,6 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
 
     return () => {
       console.log('[LiveStream] Cleanup function called.');
-      // Final, most robust cleanup logic:
-      // Only destroy the player if the ref was successfully set (meaning onPlay was called)
-      // AND if its internal source object exists. This prevents the "Cannot read properties of null (reading 'close')" error.
       if (playerRef.current && playerRef.current.source) {
         try {
           console.log('[LiveStream] Attempting to destroy successfully referenced player instance...');
@@ -121,7 +134,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
          console.log("[LiveStream] No valid, referenced player to destroy. Cleanup finished.");
       }
     };
-  }, [dog.id, dog.name]); 
+  }, [dog.id, dog.name, isTabActive]); // Add isTabActive to dependency array
 
   return (
     <Card className="shadow-lg h-full flex flex-col">
@@ -168,7 +181,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         <Alert>
             <AlertTitle>關於即時影像</AlertTitle>
             <AlertDescription>
-              此功能將嘗試使用 `ws://` 協定連接至串流伺服器。若您的網站使用 `https://`，您可能需要在瀏覽器網址列旁點擊「不安全」或鎖頭圖示，並手動**允許載入不安全的內容**。
+              此功能將嘗試使用 `ws://` 協定連接至串流伺服器。若您的網站使用 `https`，您可能需要在瀏覽器網址列旁點擊「不安全」或鎖頭圖示，並手動**允許載入不安全的內容**。
             </AlertDescription>
         </Alert>
       </CardContent>
