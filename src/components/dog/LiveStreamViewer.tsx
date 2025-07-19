@@ -30,7 +30,6 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
 
   // --- 重要設定 ---
   // 這是在您本地網路上執行 stream-server.js 的電腦的 IP 位址。
-  // 我們已經根據您的 `ipconfig` 輸出，將其設定為正確的值。
   const streamServerIp = '192.168.88.103'; 
   const streamServerPort = 8081;
   // --- 設定結束 ---
@@ -41,7 +40,8 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
     setIsLoading(true);
 
     let webSocketUrl = `ws://${streamServerIp}:${streamServerPort}`;
-    if (window.location.protocol === 'https:') {
+    // Handle secure contexts (https) which require wss://
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
       webSocketUrl = `wss://${streamServerIp}:${streamServerPort}`;
     }
 
@@ -95,7 +95,6 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
 
     return () => {
       // This cleanup runs for the *previous* effect.
-      // playerRef.current will hold the successfully played instance.
       if (playerRef.current) {
         try {
           console.log('[LiveStream] Attempting to destroy player instance...');
@@ -105,9 +104,17 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         } catch (e) {
           console.error("[LiveStream] Failed to destroy player instance during cleanup:", e);
         }
+      } else if (player) {
+        // If player was created but never played, it won't be in playerRef.
+        // We still need to attempt to destroy it.
+        try {
+            player.destroy();
+        } catch(e) {
+            console.error("[LiveStream] Failed to destroy un-referenced player instance during cleanup:", e);
+        }
       }
     };
-  }, [dog.id]); // Re-run effect when the dog changes.
+  }, [dog.id]); 
 
   return (
     <Card className="shadow-lg h-full flex flex-col">
