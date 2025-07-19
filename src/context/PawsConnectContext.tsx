@@ -168,8 +168,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     }
 
     try {
-        // Step 1: Fetch liked dogs with a direct join.
-        // Supabase can infer the join through the foreign key `dog_id` on the `user_dog_likes` table.
+        // Step 1: Fetch liked dogs for the current user.
         const { data: likedDogsData, error: likedDogsError } = await supabase
             .from('user_dog_likes')
             .select(`
@@ -183,7 +182,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         }
 
         const userLikedDogs = (likedDogsData || [])
-            // The result is [{ dogs_for_adoption_view: { ...dog_data } }, ...]
             .map(item => item.dogs_for_adoption_view)
             .filter((dog): dog is DbDog => dog !== null && typeof dog === 'object' && 'id' in dog)
             .map(mapDbDogToDogType);
@@ -484,11 +482,3 @@ export const usePawsConnect = () => {
   }
   return context;
 };
-
-    
-
-    
-
-    
-
-    
