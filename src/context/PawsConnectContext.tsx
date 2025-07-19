@@ -168,7 +168,8 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     }
 
     try {
-        // Step 1: Fetch liked dogs for the current user using a JOIN.
+        // Step 1: Fetch liked dogs data for "My Matches" page.
+        // This query joins user_dog_likes with the view to get full dog details for the specific user.
         const { data: likedDogsData, error: likedDogsError } = await supabase
             .from('user_dog_likes')
             .select(`
@@ -181,20 +182,15 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
             throw likedDogsError;
         }
         
-        // Correctly extract the nested dog data from each record in the join result.
+        // Correctly parse the nested dog objects from the join result.
         const userLikedDbDogs = (likedDogsData || [])
             .map(likeRecord => likeRecord.dogs_for_adoption_view) // Correctly extracts the nested object
-            .filter((dog): dog is DbDog => dog !== null && typeof dog === 'object');
+            .filter((dog): dog is DbDog => dog !== null && typeof dog === 'object'); // Filter out any nulls
             
         const userLikedDogs = userLikedDbDogs.map(mapDbDogToDogType);
-        
         setLikedDogs(userLikedDogs);
 
-        // Step 2: Populate the seenDogIds set with IDs of liked dogs.
-        const likedDogIdsSet = new Set(userLikedDogs.map(d => d.id));
-        setSeenDogIds(likedDogIdsSet);
-        
-        // Step 3: Fetch all available dogs for the swipe interface.
+        // Step 2: Fetch all available dogs for the swipe interface from the view.
         const { data: allDogsData, error: allDogsError } = await supabase
             .from('dogs_for_adoption_view')
             .select('*');
@@ -207,6 +203,11 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         const allDogs = allDogsData.map(mapDbDogToDogType);
         setMasterDogList(allDogs);
 
+        // Step 3: Populate the seenDogIds set with IDs of already liked dogs.
+        // This is used to filter them out from the swipe deck.
+        const likedDogIdsSet = new Set(userLikedDogs.map(d => d.id));
+        setSeenDogIds(likedDogIdsSet);
+        
         // Step 4: Determine dogs to swipe (all dogs minus the ones already liked).
         const unseenDogs = allDogs.filter(dog => !likedDogIdsSet.has(dog.id));
         setDogsToSwipe(unseenDogs);
