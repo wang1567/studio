@@ -4,16 +4,16 @@
 import type { Dog } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Video, WifiOff, Loader2 } from 'lucide-react';
+import { Video, WifiOff, Loader2, ShieldAlert } from 'lucide-react';
 import React, { useRef, useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useTabsContext } from './TabsContext'; 
+import Link from 'next/link';
 
 // Dynamically import jsmpeg-player only on the client-side
 let JSMpeg: any = null;
 if (typeof window !== 'undefined') {
   import('jsmpeg-player').then(module => {
-    // The default export might be nested under another default property
     JSMpeg = module.default || module;
   }).catch(err => {
     console.error("Failed to load jsmpeg-player:", err);
@@ -30,37 +30,33 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Use the context to know if this tab is active
   const { activeTab } = useTabsContext();
   const isTabActive = activeTab === 'live';
 
   const streamServerPort = 8081;
 
   useEffect(() => {
-    // Only run this effect if the tab is active and the JSMpeg library has loaded.
     if (!isTabActive || !JSMpeg) {
-      // If the tab becomes inactive, ensure any existing player is destroyed.
       if (playerRef.current) {
         try {
           playerRef.current.destroy();
         } catch (e) {
-          // It's safe to ignore errors during destruction on tab change.
+            // It's safe to ignore errors during destruction on tab change.
         }
         playerRef.current = null;
       }
       return;
     }
 
-    // Reset state for the new stream
     setError(null);
     setIsLoading(true);
 
     const streamServerIp = window.location.hostname;
-    const webSocketUrl = `ws://${streamServerIp}:${streamServerPort}`;
+    // --- Use Secure WebSocket (wss://) protocol ---
+    const webSocketUrl = `wss://${streamServerIp}:${streamServerPort}`;
 
     let player: any;
 
-    // A small delay to ensure the canvas is ready after the tab switch
     const timeoutId = setTimeout(() => {
       if (!canvasRef.current) {
           setError("Canvas element is not ready.");
@@ -87,7 +83,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
               setIsLoading(true);
           },
           onError: (e: any) => {
-              setError(`Unable to connect to the video stream. Please ensure the backend service is running and firewall settings are correct.`);
+              setError(`無法連接至安全的影像串流。這通常是因為瀏覽器不信任我們的「自我簽署」開發憑證。`);
               setIsLoading(false);
           }
         });
@@ -95,16 +91,13 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         playerRef.current = player;
         
       } catch (e: any) {
-        setError(`Error creating player: ${e.message}`);
+        setError(`建立播放器時發生錯誤: ${e.message}`);
         setIsLoading(false);
       }
-    }, 100); // 100ms delay
+    }, 100);
 
-    // Cleanup function
     return () => {
       clearTimeout(timeoutId);
-      // **CRITICAL FIX**: Only attempt to destroy the player if it, and its source, were successfully created.
-      // This prevents the "Cannot read properties of null (reading 'close')" error.
       if (playerRef.current && playerRef.current.source && typeof playerRef.current.destroy === 'function') {
         try {
           playerRef.current.destroy();
@@ -114,7 +107,6 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
       }
       playerRef.current = null;
     };
-  // Rerun this effect if the dog changes or if the tab becomes active/inactive
   }, [dog.id, isTabActive]);
 
   return (
@@ -124,7 +116,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
           <Video className="h-6 w-6 text-primary" />
           Live Video
         </CardTitle>
-        <CardDescription>Interact with {dog.name} via video!</CardDescription>
+        <CardDescription>與 {dog.name} 進行即時影像互動！</CardDescription>
       </CardHeader>
       <CardContent className="p-6 space-y-4 flex-grow flex flex-col">
         <div 
@@ -142,20 +134,37 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
           {isLoading && !error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-4">
                 <Loader2 className="h-12 w-12 text-primary animate-spin mb-4"/>
-                <h3 className="text-lg font-semibold text-primary">Connecting to video...</h3>
+                <h3 className="text-lg font-semibold text-primary">正在連接至安全影像...</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Please wait. If this takes a long time, the backend service or camera may be offline.
+                  請稍候。如果長時間沒有回應，後端服務或攝影機可能已離線。
                 </p>
             </div>
           )}
-
+          
           {error && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-destructive/10 text-center p-4 rounded-md">
                 <WifiOff className="h-12 w-12 text-destructive mb-4"/>
-                <h3 className="text-lg font-semibold text-destructive">Stream Error</h3>
-                <p className="text-sm text-destructive/90 max-w-full break-words px-2">
-                  {error}
-                </p>
+                <h3 className="text-lg font-semibold text-destructive">串流連線失敗</h3>
+                <Alert variant="destructive" className="mt-4 text-left">
+                  <ShieldAlert className="h-4 w-4" />
+                  <AlertTitle>需要您的操作！</AlertTitle>
+                  <AlertDescription>
+                    <p className="mb-2">{error}</p>
+                    <p>
+                      <strong>解決方法：</strong>
+                      請在新分頁中點擊此連結 
+                      <Link 
+                        href={`https://${typeof window !== 'undefined' ? window.location.hostname : ''}:8081`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="font-bold text-destructive underline hover:text-destructive/80 mx-1"
+                      >
+                         信任憑證
+                      </Link> 
+                       ，在打開的頁面中點擊「進階」，然後選擇「繼續前往... (不安全)」。完成後，回到此頁面並重新整理即可。
+                    </p>
+                  </AlertDescription>
+                </Alert>
             </div>
           )}
         </div>
