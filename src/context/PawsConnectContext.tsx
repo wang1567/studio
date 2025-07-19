@@ -168,7 +168,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     }
 
     try {
-        // Fetch liked dogs using a join for the "My Matches" page
+        // Step 1: Fetch liked dogs directly using a join for "My Matches"
         const { data: likedDogsData, error: likedDogsError } = await supabase
             .from('user_dog_likes')
             .select(`
@@ -183,31 +183,31 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         
         const userLikedDogs = (likedDogsData || [])
             .map(item => item.dogs_for_adoption_view)
-            // Ensure the nested object is not null
-            .filter((dog): dog is DbDog => dog !== null) 
+            .filter((dog): dog is DbDog => dog !== null)
             .map(mapDbDogToDogType);
         
         setLikedDogs(userLikedDogs);
         
-        // Populate the seenDogIds set with the IDs of liked dogs
+        // Step 2: Populate the seenDogIds set with IDs of liked dogs
         const likedDogIdsSet = new Set(userLikedDogs.map(d => d.id));
+        setSeenDogIds(likedDogIdsSet);
         
-        // Then fetch all dogs for the swipe interface, excluding those already liked
+        // Step 3: Fetch all available dogs for the swipe interface
         const { data: allDogsData, error: allDogsError } = await supabase
             .from('dogs_for_adoption_view')
             .select('*');
 
         if (allDogsError) {
-             console.error("Error fetching all dogs from Supabase:", allDogsError);
+            console.error("Error fetching all dogs from Supabase:", allDogsError);
             throw allDogsError;
         }
 
         const allDogs = allDogsData.map(mapDbDogToDogType);
         setMasterDogList(allDogs);
 
+        // Step 4: Determine dogs to swipe (all dogs minus the ones already liked)
         const unseenDogs = allDogs.filter(dog => !likedDogIdsSet.has(dog.id));
         setDogsToSwipe(unseenDogs);
-        setSeenDogIds(likedDogIdsSet); // Final seen set is just the liked dogs
 
     } catch (error) {
         console.error("Unhandled error during dog data fetch:", error);
@@ -482,5 +482,7 @@ export const usePawsConnect = () => {
   }
   return context;
 };
+
+    
 
     
