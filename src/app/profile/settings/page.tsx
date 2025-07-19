@@ -17,16 +17,45 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { usePawsConnect } from "@/context/PawsConnectContext";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
+import { useForm, type SubmitHandler } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+
+const emailUpdateSchema = z.object({
+  newEmail: z.string().email({ message: "請輸入有效的電子郵件地址。" }),
+});
+
+type EmailUpdateFormValues = z.infer<typeof emailUpdateSchema>;
+
 
 export default function SettingsPage() {
-  const { user, deleteAccount, sendPasswordResetEmail } = usePawsConnect();
+  const { user, deleteAccount, sendPasswordResetEmail, updateUserEmail } = usePawsConnect();
   const { toast } = useToast();
   const router = useRouter();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSendingReset, setIsSendingReset] = useState(false);
+  const [isUpdatingEmail, setIsUpdatingEmail] = useState(false);
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+
+  const { register, handleSubmit, formState: { errors }, reset } = useForm<EmailUpdateFormValues>({
+    resolver: zodResolver(emailUpdateSchema),
+  });
+
 
   const handleDeleteAccount = async () => {
     if (!user) {
@@ -75,6 +104,30 @@ export default function SettingsPage() {
       setIsSendingReset(false);
     }
   };
+  
+  const onEmailUpdateSubmit: SubmitHandler<EmailUpdateFormValues> = async (data) => {
+    setIsUpdatingEmail(true);
+    try {
+      const { error } = await updateUserEmail(data.newEmail);
+      if (error) {
+        throw new Error(error);
+      }
+      toast({
+        title: "驗證郵件已寄出",
+        description: "請檢查您的新舊電子信箱，並點擊信中連結以完成更新。",
+      });
+      setIsEmailDialogOpen(false);
+      reset();
+    } catch (e: any) {
+      toast({
+        title: "更新失敗",
+        description: e.message || "更新電子郵件時發生錯誤。",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingEmail(false);
+    }
+  };
 
 
   return (
@@ -104,7 +157,46 @@ export default function SettingsPage() {
           <CardTitle>帳戶管理</CardTitle>
            <CardDescription>管理您的帳戶資料。</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
+           <div>
+             <h3 className="font-semibold">更改電子郵件</h3>
+             <p className="text-sm text-muted-foreground mb-2">目前的電子郵件: {user?.email}</p>
+              <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">更改電子郵件</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <form onSubmit={handleSubmit(onEmailUpdateSubmit)}>
+                    <DialogHeader>
+                      <DialogTitle>更改您的電子郵件地址</DialogTitle>
+                      <DialogDescription>
+                        我們會寄送驗證連結到您的新舊信箱。請點擊兩個連結以完成更改。
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                      <Label htmlFor="newEmail">新的電子郵件地址</Label>
+                      <Input 
+                        id="newEmail" 
+                        type="email" 
+                        {...register('newEmail')}
+                        placeholder="new.email@example.com"
+                        className={errors.newEmail ? "border-destructive" : ""}
+                        />
+                      {errors.newEmail && <p className="text-xs text-destructive mt-1">{errors.newEmail.message}</p>}
+                    </div>
+                    <DialogFooter>
+                      <DialogClose asChild>
+                        <Button type="button" variant="outline" disabled={isUpdatingEmail}>取消</Button>
+                      </DialogClose>
+                      <Button type="submit" disabled={isUpdatingEmail}>
+                        {isUpdatingEmail && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {isUpdatingEmail ? "傳送中..." : "傳送驗證信"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
+           </div>
            <div>
              <h3 className="font-semibold">更改密碼</h3>
              <p className="text-sm text-muted-foreground mb-2">我們將寄送一封密碼重設郵件給您。</p>
