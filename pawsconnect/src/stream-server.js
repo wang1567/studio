@@ -11,8 +11,8 @@ const port = 8082; // This server runs on your LOCAL machine now.
 // This URL points to your LOCAL camera's RTSP stream.
 // --- IMPORTANT ---
 // Please replace 'YOUR_USERNAME' and 'YOUR_PASSWORD' with your camera's actual login credentials.
-// For example: 'rtsp://admin:password123@192.168.88.101:554/stream1'
-const rtspUrl = 'rtsp://YOUR_USERNAME:YOUR_PASSWORD@192.168.88.101:554/stream1';
+// For example: 'rtsp://admin:password123@192.168.88.103:554/stream1'
+const rtspUrl = 'rtsp://YOUR_USERNAME:YOUR_PASSWORD@192.168.88.103:554/stream1';
 console.log(`[Config] Attempting to connect to LOCAL RTSP URL: ${rtspUrl.replace(/:.*@/, '://****:****@')}`);
 
 
