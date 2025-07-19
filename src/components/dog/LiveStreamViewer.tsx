@@ -24,7 +24,7 @@ interface LiveStreamViewerProps {
 
 export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const playerRef = useRef<any>(null); // This holds the *successful* player instance
+  const playerRef = useRef<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -37,23 +37,36 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
     // Reset state for the new dog
     setError(null);
     setIsLoading(true);
+    console.log(`[LiveStream] useEffect triggered for dog: ${dog.name} (${dog.id}). State reset.`);
 
     let webSocketUrl = `ws://${streamServerIp}:${streamServerPort}`;
-    // Handle secure contexts (https) which require wss://
     if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
       webSocketUrl = `wss://${streamServerIp}:${streamServerPort}`;
+      console.log("[LiveStream] HTTPS detected, using wss:// protocol.");
+    } else {
+      console.log("[LiveStream] HTTP detected, using ws:// protocol.");
     }
 
-    // If the library hasn't loaded yet, or canvas isn't ready, wait.
     if (!JSMpeg || !canvasRef.current) {
-        const timeoutId = setTimeout(() => setIsLoading(prev => !prev), 200); // Trigger re-render to retry
-        return () => clearTimeout(timeoutId);
+        const checkLibraryTimeout = setTimeout(() => {
+          if (!JSMpeg) {
+            console.error("[LiveStream] JSMpeg library has not loaded after a delay.");
+            setError("播放器程式庫載入失敗，請重新整理頁面。");
+            setIsLoading(false);
+          } else if (!canvasRef.current) {
+             console.error("[LiveStream] Canvas element is not available.");
+             setError("播放器畫布渲染失敗。");
+             setIsLoading(false);
+          }
+        }, 3000);
+        console.warn("[LiveStream] JSMpeg library or canvas not ready. Will retry or timeout.");
+        return () => clearTimeout(checkLibraryTimeout);
     }
     
     let player: any;
     
     try {
-      console.log(`[LiveStream] Preparing to initialize JSMpeg player for dog ${dog.id}. Target URL: ${webSocketUrl}`);
+      console.log(`[LiveStream] Preparing to initialize JSMpeg player. Target URL: ${webSocketUrl}`);
       const Player = JSMpeg.Player;
       if (!Player) {
         throw new Error("JSMpeg.Player is not available. The module might not have loaded correctly.");
@@ -65,45 +78,46 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         audio: false,
         loop: true,
         onPlay: () => {
-            console.log(`[LiveStream] Playback started for: ${webSocketUrl}`);
+            console.log(`[LiveStream] SUCCESS: Playback started for: ${webSocketUrl}`);
             setIsLoading(false);
             setError(null);
-            // Only assign to ref once we are sure it's a valid, playable instance
-            playerRef.current = player;
+            playerRef.current = player; // Only assign on successful play
         },
         onStalled: () => {
             console.warn('[LiveStream] Player stalled. Waiting for data...');
-            setIsLoading(true);
+            setIsLoading(true); // Can show loading indicator if stream pauses
         },
         onEnded: () => {
             console.log('[LiveStream] Stream ended.');
         },
         onError: (e: any) => {
             const errorMessage = e?.message || '未知串流錯誤';
-            console.error('[LiveStream] Player error:', errorMessage);
-            setError(`無法播放串流。請檢查串流伺服器是否在 ${streamServerIp}:${streamServerPort} 正常運作，以及您的網路連線。`);
+            console.error('[LiveStream] FATAL: Player reported an error:', errorMessage, e);
+            setError(`播放器回報錯誤：${errorMessage}。請檢查後端伺服器日誌與網路連線。`);
             setIsLoading(false);
         }
       });
+      console.log("[LiveStream] JSMpeg.Player instance created successfully. Waiting for 'onPlay' event...");
       
     } catch (e: any) {
-      console.error("[LiveStream] Failed to initialize JSMpeg player:", e);
-      setError(`建立播放器時發生錯誤: ${e.message}`);
+      console.error("[LiveStream] FATAL: Failed to initialize JSMpeg player in try-catch block:", e);
+      setError(`建立播放器時發生嚴重錯誤: ${e.message}`);
       setIsLoading(false);
     }
 
     return () => {
-      // This cleanup runs for the *previous* effect.
-      // We ONLY destroy the player instance that was successfully stored in the ref.
+      console.log('[LiveStream] Cleanup function called.');
       if (playerRef.current) {
         try {
-          console.log('[LiveStream] Attempting to destroy player instance...');
+          console.log('[LiveStream] Attempting to destroy successfully referenced player instance...');
           playerRef.current.destroy();
           playerRef.current = null;
-          console.log('[LiveStream] JSMpeg player instance destroyed.');
+          console.log('[LiveStream] Successfully referenced JSMpeg player instance destroyed.');
         } catch (e) {
-          console.error("[LiveStream] Failed to destroy player instance during cleanup:", e);
+          console.error("[LiveStream] Failed to destroy referenced player instance during cleanup:", e);
         }
+      } else {
+         console.log("[LiveStream] No referenced player to destroy, cleanup finished.");
       }
     };
   }, [dog.id]); 
