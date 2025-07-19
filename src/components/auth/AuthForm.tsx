@@ -3,7 +3,7 @@
 
 import * as React from 'react';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, type SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,8 @@ import { usePawsConnect } from '@/context/PawsConnectContext';
 import { useRouter } from 'next/navigation';
 import { UserRole } from '@/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import Link from 'next/link';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { Loader2 } from 'lucide-react';
 
 
 const loginSchema = z.object({
@@ -38,13 +39,21 @@ const signupSchema = z.object({
 
 type SignupFormValues = z.infer<typeof signupSchema>;
 
+const passwordResetSchema = z.object({
+  email: z.string().email({ message: '請輸入有效的電子郵件地址。' }),
+});
+type PasswordResetFormValues = z.infer<typeof passwordResetSchema>;
+
 
 export const AuthForm = () => {
   const { toast } = useToast();
-  const { login, signUp, isLoadingAuth } = usePawsConnect();
+  const { login, signUp, isLoadingAuth, sendPasswordResetEmail } = usePawsConnect();
   const router = useRouter();
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [selectedRole, setSelectedRole] = useState<UserRole>('adopter');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+
 
   const currentSchema = authMode === 'login' ? loginSchema : signupSchema;
 
@@ -53,6 +62,15 @@ export const AuthForm = () => {
     defaultValues: authMode === 'login' ? { email: '', password: ''} : { email: '', password: '', confirmPassword: '', role: 'adopter', fullName: ''},
   });
   
+  const { 
+    register: registerReset, 
+    handleSubmit: handleSubmitReset, 
+    formState: { errors: resetErrors },
+    reset: resetPasswordForm
+  } = useForm<PasswordResetFormValues>({
+    resolver: zodResolver(passwordResetSchema),
+  });
+
   React.useEffect(() => {
     reset(authMode === 'login' ? { email: '', password: ''} : { email: '', password: '', confirmPassword: '', role: selectedRole, fullName: ''});
   }, [authMode, selectedRole, reset]);
@@ -79,6 +97,30 @@ export const AuthForm = () => {
       });
     }
   };
+  
+  const onPasswordResetSubmit: SubmitHandler<PasswordResetFormValues> = async (data) => {
+    setIsResettingPassword(true);
+    try {
+      const { error } = await sendPasswordResetEmail(data.email);
+      if (error) throw new Error(error);
+
+      toast({
+        title: "郵件已寄出",
+        description: "密碼重設指示已寄送到您的信箱。",
+      });
+      setIsResetDialogOpen(false);
+      resetPasswordForm();
+    } catch (e: any) {
+       toast({
+        title: "寄送失敗",
+        description: e.message || "寄送密碼重設郵件時發生錯誤。",
+        variant: "destructive",
+      });
+    } finally {
+      setIsResettingPassword(false);
+    }
+  }
+
 
   return (
     <Card className="w-full shadow-2xl bg-card">
@@ -140,9 +182,41 @@ export const AuthForm = () => {
           {authMode === 'login' ? "還沒有帳戶嗎？立即註冊" : '已經有帳戶了？立即登入'}
         </Button>
         {authMode === 'login' && (
-          <Link href="#" className="text-xs text-muted-foreground hover:text-primary">
-            忘記密碼？
-          </Link>
+          <Dialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+            <DialogTrigger asChild>
+               <Button variant="link" className="text-xs text-muted-foreground hover:text-primary p-0 h-auto">忘記密碼？</Button>
+            </DialogTrigger>
+            <DialogContent>
+               <form onSubmit={handleSubmitReset(onPasswordResetSubmit)}>
+                <DialogHeader>
+                  <DialogTitle>重設您的密碼</DialogTitle>
+                  <DialogDescription>
+                    請輸入您註冊時使用的電子郵件地址，我們將會寄送一封包含重設連結的郵件給您。
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <Label htmlFor="reset-email">電子郵件</Label>
+                  <Input 
+                    id="reset-email" 
+                    type="email" 
+                    {...registerReset('email')}
+                    placeholder="you@example.com"
+                    className={resetErrors.email ? "border-destructive" : ""}
+                  />
+                  {resetErrors.email && <p className="text-xs text-destructive mt-1">{resetErrors.email.message}</p>}
+                </div>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button type="button" variant="outline" disabled={isResettingPassword}>取消</Button>
+                  </DialogClose>
+                  <Button type="submit" disabled={isResettingPassword}>
+                    {isResettingPassword && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isResettingPassword ? "傳送中..." : "傳送重設郵件"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         )}
       </CardFooter>
     </Card>
