@@ -155,59 +155,50 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
 
   const loadInitialDogData = useCallback(async (currentUserId: string | null) => {
-    const sourceToQuery = 'dogs_for_adoption_view'; 
     setIsLoadingDogs(true);
     try {
-      const { data: dogsData, error: dogsError } = await supabase
-        .from(sourceToQuery)
-        .select('*');
-        
-      if (dogsError) {
-          console.error(`Error fetching dogs from Supabase view '${sourceToQuery}':`, dogsError);
-        setMasterDogList([]);
-        setLikedDogs([]);
-      } else if (dogsData && dogsData.length > 0) {
+        const { data: dogsData, error: dogsError } = await supabase
+            .from('dogs_for_adoption_view')
+            .select('*');
+
+        if (dogsError) {
+            console.error("Error fetching dogs from Supabase:", dogsError);
+            throw dogsError;
+        }
+
         const allDogsFromDb = dogsData.map(mapDbDogToDogType);
         setMasterDogList(allDogsFromDb);
+        let userLikedDogs: Dog[] = [];
+        let likedDogIdsSet = new Set<string>();
 
-        if (currentUserId) { 
+        if (currentUserId) {
             const { data: likedDogsData, error: likedDogsError } = await supabase
-            .from('user_dog_likes')
-            .select('dog_id')
-            .eq('user_id', currentUserId);
+                .from('user_dog_likes')
+                .select('dog_id')
+                .eq('user_id', currentUserId);
 
             if (likedDogsError) {
                 console.error('Error fetching liked dogs:', likedDogsError);
-                setLikedDogs([]);
             } else if (likedDogsData) {
-                const likedDogIdsSet = new Set(likedDogsData.map((like: {dog_id: string}) => like.dog_id));
-                const userLikedDogs = allDogsFromDb.filter(dog => likedDogIdsSet.has(dog.id));
-                setLikedDogs(userLikedDogs);
+                likedDogIdsSet = new Set(likedDogsData.map(like => like.dog_id));
+                userLikedDogs = allDogsFromDb.filter(dog => likedDogIdsSet.has(dog.id));
             }
-        } else {
-            setLikedDogs([]); 
         }
-      } else {
-         console.warn(
-            "================================================================================\n" +
-            "=== POTENTIAL DATABASE PERMISSION ISSUE (RLS) - PLEASE READ CAREFULLY ===\n" +
-            "================================================================================\n" +
-            `Warning: The query to fetch dogs from the '${sourceToQuery}' view succeeded but returned 0 dogs. This is often not an error in the application code, but a sign of a Row Level Security (RLS) policy on the underlying 'pets' table.\n\n` +
-            "TO FIX THIS, please check the RLS policies on your 'pets' table in the Supabase dashboard.\n\n" +
-            'If you want all users to be able to see all pets, you need a policy like this:\n' +
-            'CREATE POLICY "All users can view all pets." ON "public"."pets" FOR SELECT USING (true);\n\n' +
-            "Without a permissive SELECT policy, each user might only be able to see the pets they added themselves, resulting in an empty list for other users.\n" +
-            "================================================================================"
-        );
-        setMasterDogList([]);
-        setLikedDogs([]);
-      }
+        
+        setLikedDogs(userLikedDogs);
+        const seenIds = new Set(userLikedDogs.map(d => d.id));
+        setSeenDogIds(seenIds);
+        
+        const dogsForSwiping = allDogsFromDb.filter(dog => !seenIds.has(dog.id));
+        setDogsToSwipe(dogsForSwiping);
+
     } catch (error) {
-      console.error(`Unhandled error during dog data fetch from Supabase view '${sourceToQuery}':`, error);
-      setMasterDogList([]);
-      setLikedDogs([]);
+        console.error("Unhandled error during dog data fetch:", error);
+        setMasterDogList([]);
+        setDogsToSwipe([]);
+        setLikedDogs([]);
     } finally {
-      setIsLoadingDogs(false);
+        setIsLoadingDogs(false);
     }
   }, []);
 
@@ -220,12 +211,11 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
 
   useEffect(() => {
-    if (isLoadingDogs || masterDogList.length === 0) {
-      setDogsToSwipe([]);
-      return;
+    if (!isLoadingDogs) {
+      const dogsForSwiping = masterDogList.filter(dog => !seenDogIds.has(dog.id));
+      setDogsToSwipe(dogsForSwiping);
     }
-    setDogsToSwipe(masterDogList);
-  }, [masterDogList, isLoadingDogs]);
+  }, [seenDogIds, masterDogList, isLoadingDogs]);
 
 
   const likeDog = async (dogId: string) => {
@@ -247,6 +237,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
     try {
       setIsLiking(prev => new Set(prev).add(dogId));
+      passDog(dogId); // Optimistically remove from swipe list
 
       const { error: insertError } = await supabase
         .from('user_dog_likes')
@@ -260,6 +251,12 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
               title: "按讚失敗",
               description: "無法儲存您的選擇。請檢查您的網路連線或稍後再試。",
             });
+             // Revert optimistic update
+            setSeenDogIds(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(dogId);
+              return newSet;
+            });
         }
       }
 
@@ -269,7 +266,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         }
         return prevLikedDogs;
       });
-      setSeenDogIds(prevSeenIds => new Set(prevSeenIds).add(dogId));
 
     } catch (error) {
         console.error("An unexpected error occurred during the like operation:", error);
@@ -425,5 +421,3 @@ export const usePawsConnect = () => {
   }
   return context;
 };
-
-    
