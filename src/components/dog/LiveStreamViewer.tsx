@@ -20,43 +20,22 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   
   // The port the MJPEG stream server is running on.
   const streamServerPort = 8082;
+  // Dynamically construct the URL using the current page's hostname.
+  // This is more robust than hardcoding an IP address.
   const streamUrl = isTabActive 
     ? `http://${typeof window !== 'undefined' ? window.location.hostname : 'localhost'}:${streamServerPort}/`
     : '';
 
-  const imageRef = useRef<HTMLImageElement>(null);
-
+  // Reset state when tab becomes inactive
   useEffect(() => {
     if (!isTabActive) {
       setStreamState('loading');
-      return;
+    } else {
+      // When tab becomes active, start in loading state.
+      // The img tag's onLoad/onError will change it.
+      setStreamState('loading');
     }
-
-    const img = imageRef.current;
-    if (!img) return;
-
-    const controller = new AbortController();
-    const { signal } = controller;
-
-    setStreamState('loading');
-
-    // Use fetch to check if the stream is available.
-    fetch(streamUrl, { mode: 'no-cors', signal })
-      .then(response => {
-        // no-cors means we can't inspect the response, but if it doesn't throw, the server is likely up.
-        setStreamState('loaded');
-      })
-      .catch(err => {
-        if (err.name !== 'AbortError') {
-          console.error("MJPEG stream connection error:", err);
-          setStreamState('error');
-        }
-      });
-
-    return () => {
-      controller.abort();
-    };
-  }, [isTabActive, streamUrl]);
+  }, [isTabActive]);
 
   return (
     <Card className="shadow-lg h-full flex flex-col">
@@ -74,13 +53,12 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         >
           {isTabActive && (
             <img
-              ref={imageRef}
               src={streamUrl}
               alt={`Live stream of ${dog.name}`}
               className={cn("w-full h-full object-contain transition-opacity duration-500", 
                 streamState === 'loaded' ? 'opacity-100' : 'opacity-0'
               )}
-              // Inline error handling for the img tag itself
+              onLoad={() => setStreamState('loaded')}
               onError={() => setStreamState('error')}
             />
           )}
@@ -101,7 +79,11 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
                 <Alert variant="destructive" className="mt-4 text-left">
                   <AlertTitle>串流連線失敗</AlertTitle>
                   <AlertDescription>
-                    <p>無法連接至即時影像。請確認後端 `stream-server.js` 服務是否已啟動並在運作中。</p>
+                    <p>無法連接至即時影像。這可能是因為：</p>
+                    <ul className="list-disc pl-5 mt-2">
+                        <li>後端 `stream-server.js` 服務未啟動。</li>
+                        <li>瀏覽器安全設定(混合內容)阻擋了連線。</li>
+                    </ul>
                   </AlertDescription>
                 </Alert>
             </div>
