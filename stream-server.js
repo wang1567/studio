@@ -3,91 +3,88 @@ const express = require('express');
 const cors = require('cors');
 const { spawn } = require('child_process');
 const WebSocket = require('ws');
-const https = require('https'); // 引入 https 模組
-const fs = require('fs'); // 引入 fs 模組
-const path = require('path'); // 引入 path 模組
+const http = require('http'); // 改回使用 http
+const path = require('path');
 
 const app = express();
+
+// 允許所有來源的請求，以簡化開發環境中的跨域問題
 app.use(cors({ origin: '*' }));
 
-// --- SSL/TLS 憑證設定 ---
-// 讀取您在 certs/ 資料夾中產生的金鑰和憑證
-const options = {
-  key: fs.readFileSync(path.join(__dirname, 'certs/key.pem')),
-  cert: fs.readFileSync(path.join(__dirname, 'certs/cert.pem'))
-};
-// ------------------------
+// --- 使用 http 建立伺服器 ---
+const server = http.createServer(app);
+// -----------------------------
 
-// --- 使用 https 建立安全伺服器 ---
-const server = https.createServer(options, app);
-// ---------------------------------
-
-// 將 WebSocket 伺服器附加到 HTTPS 伺服器上
+// 將 WebSocket 伺服器附加到 HTTP 伺服器上
 const wss = new WebSocket.Server({ server });
 
 // --- 正確的攝影機 RTSP 位址 ---
+// 請確保此處的 IP 位址和認證資訊是正確的
 const rtspUrl = 'rtsp://wang1567:15671567@192.168.88.101:554/stream1';
 // -----------------------------
 
-console.log(`已設定的 RTSP URL: ${rtspUrl}`);
-console.log('正在讀取 SSL 憑證...');
+console.log(`[Config] 設定的 RTSP URL: ${rtspUrl}`);
 
 // WebSocket 連線處理
 wss.on('connection', (ws, req) => {
     const remoteAddress = req.socket.remoteAddress;
-    console.log(`[${new Date().toLocaleTimeString()}] 來自 ${remoteAddress} 的新安全 WebSocket (WSS) 連線`);
+    console.log(`[${new Date().toLocaleTimeString()}] 來自 ${remoteAddress} 的新 WebSocket (WS) 連線`);
 
     // 為每一個新的客戶端連線，都產生一個新的 FFmpeg 程序
     const ffmpeg = spawn('ffmpeg', [
-        '-rtsp_transport', 'tcp',
-        '-i', rtspUrl,
-        '-f', 'mpegts',
-        '-codec:v', 'mpeg1video',
-        '-s', '1280x720',
-        '-b:v', '1000k',
-        '-bf', '0',
-        '-r', '30',
-        '-muxdelay', '0.001',
-        'pipe:1'
+        '-rtsp_transport', 'tcp',        // 優先使用 TCP 傳輸，更穩定
+        '-i', rtspUrl,                   // 輸入的 RTSP 串流
+        '-f', 'mpegts',                  // 輸出格式為 MPEG-TS
+        '-codec:v', 'mpeg1video',        // 輸出視訊編碼為 mpeg1
+        '-s', '1280x720',                // 輸出解析度
+        '-b:v', '1000k',                 // 視訊位元率
+        '-bf', '0',                      // 關閉 B 幀，降低延遲
+        '-r', '30',                      // 幀率
+        '-muxdelay', '0.001',            // 關鍵：極低的複用延遲，確保即時輸出
+        'pipe:1'                         // 將輸出導向到標準輸出 (stdout)
     ]);
 
-    console.log(`[${remoteAddress}] 為新連線產生了 FFmpeg 程序。`);
+    console.log(`[FFmpeg] 為連線 ${remoteAddress} 產生了新的 FFmpeg 程序。`);
 
+    // 監聽 FFmpeg 的標準錯誤輸出 (用於除錯)
     ffmpeg.stderr.on('data', (data) => {
-        console.log(`[FFmpeg - ${remoteAddress}]`, data.toString());
+        // 為了避免洗版，可以選擇性地註解掉此行
+        // console.log(`[FFmpeg stderr - ${remoteAddress}]`, data.toString());
     });
     
+    // 監聽 FFmpeg 的標準輸出 (即影像資料)
     ffmpeg.stdout.on('data', (data) => {
+        // 如果 WebSocket 仍然開啟，就傳送資料
         if (ws.readyState === WebSocket.OPEN) {
             ws.send(data);
         }
     });
 
+    // 當 WebSocket 連線關閉時
     ws.on('close', () => {
-        console.log(`[${new Date().toLocaleTimeString()}] 來自 ${remoteAddress} 的 WebSocket 連線已關閉。`);
-        ffmpeg.kill();
-        console.log(`[${remoteAddress}] 已終止相關的 FFmpeg 程序。`);
+        console.log(`[WebSocket] 來自 ${remoteAddress} 的連線已關閉。`);
+        ffmpeg.kill(); // 終止對應的 FFmpeg 程序，釋放資源
+        console.log(`[FFmpeg] 已終止連線 ${remoteAddress} 的 FFmpeg 程序。`);
     });
     
+    // 當 WebSocket 發生錯誤時
     ws.on('error', (error) => {
-        console.error(`[WebSocket 錯誤 - ${remoteAddress}]`, error);
+        console.error(`[WebSocket Error - ${remoteAddress}]`, error);
         ffmpeg.kill();
     });
 
+    // 當 FFmpeg 程序退出時
     ffmpeg.on('close', (code) => {
-        console.log(`[FFmpeg - ${remoteAddress}] 程序以代碼 ${code} 退出`);
+        console.log(`[FFmpeg] 連線 ${remoteAddress} 的程序以代碼 ${code} 退出`);
+        // 如果 WebSocket 仍然開啟，就主動關閉它
         if (ws.readyState === WebSocket.OPEN) {
             ws.close();
         }
     });
 });
 
-app.get('/streams', (req, res) => {
-    res.json(['camera1']);
-});
-
-app.get('/stream/:id/status', (req, res) => {
-    res.json({ status: 'active' });
+app.get('/', (req, res) => {
+    res.send('Stream server is running.');
 });
 
 process.on('uncaughtException', (error) => {
@@ -100,5 +97,5 @@ process.on('unhandledRejection', (error) => {
 
 const PORT = process.env.PORT || 8081;
 server.listen(PORT, () => {
-    console.log(`安全串流伺服器 (HTTPS & WSS) 正在埠 ${PORT} 上執行`);
+    console.log(`串流伺服器 (HTTP & WS) 正在埠 ${PORT} 上執行`);
 });
