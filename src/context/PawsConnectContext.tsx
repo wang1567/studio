@@ -157,7 +157,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   }, [resetDogState]);
 
 
-  const loadInitialDogData = useCallback(async (currentUserId: string | null) => {
+ const loadInitialDogData = useCallback(async (currentUserId: string | null) => {
     setIsLoadingDogs(true);
     if (!currentUserId) {
         setMasterDogList([]);
@@ -168,11 +168,11 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     }
 
     try {
-        // Step 1: Fetch liked dogs directly using a join for "My Matches"
+        // Step 1: Fetch liked dogs with an explicit join alias.
         const { data: likedDogsData, error: likedDogsError } = await supabase
             .from('user_dog_likes')
             .select(`
-                dogs_for_adoption_view (*)
+                dog_data:dogs_for_adoption_view(*)
             `)
             .eq('user_id', currentUserId);
 
@@ -180,19 +180,19 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
             console.error("Error fetching liked dogs from Supabase:", likedDogsError);
             throw likedDogsError;
         }
-        
+
         const userLikedDogs = (likedDogsData || [])
-            .map(item => item.dogs_for_adoption_view)
-            .filter((dog): dog is DbDog => dog !== null)
+            .map(item => item.dog_data) // Use the alias 'dog_data' here
+            .filter((dog): dog is DbDog => dog !== null && typeof dog === 'object' && 'id' in dog)
             .map(mapDbDogToDogType);
         
         setLikedDogs(userLikedDogs);
-        
-        // Step 2: Populate the seenDogIds set with IDs of liked dogs
+
+        // Step 2: Populate the seenDogIds set with IDs of liked dogs.
         const likedDogIdsSet = new Set(userLikedDogs.map(d => d.id));
         setSeenDogIds(likedDogIdsSet);
         
-        // Step 3: Fetch all available dogs for the swipe interface
+        // Step 3: Fetch all available dogs for the swipe interface.
         const { data: allDogsData, error: allDogsError } = await supabase
             .from('dogs_for_adoption_view')
             .select('*');
@@ -205,7 +205,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         const allDogs = allDogsData.map(mapDbDogToDogType);
         setMasterDogList(allDogs);
 
-        // Step 4: Determine dogs to swipe (all dogs minus the ones already liked)
+        // Step 4: Determine dogs to swipe (all dogs minus the ones already liked).
         const unseenDogs = allDogs.filter(dog => !likedDogIdsSet.has(dog.id));
         setDogsToSwipe(unseenDogs);
 
@@ -418,7 +418,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   };
 
   const deleteAccount = async (): Promise<{ error: string | null }> => {
-    const { data, error } = await supabase.rpc('delete_user_account');
+    const { error } = await supabase.rpc('delete_user_account');
     if (error) {
       console.error('Error deleting account:', error);
       return { error: error.message };
@@ -482,6 +482,8 @@ export const usePawsConnect = () => {
   }
   return context;
 };
+
+    
 
     
 
