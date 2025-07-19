@@ -13,21 +13,19 @@ interface LiveStreamViewerProps {
 
 export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const playerRef = useRef<any>(null); // Use ref to hold the player instance
+  const playerRef = useRef<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   const originalWebSocketUrl = dog.liveStreamUrl;
   const isStreamAvailable = originalWebSocketUrl && (originalWebSocketUrl.startsWith('ws://') || originalWebSocketUrl.startsWith('wss://'));
 
   useEffect(() => {
-    // Clear any previous errors when the dog changes
     setError(null);
 
     if (isStreamAvailable && originalWebSocketUrl && canvasRef.current && typeof window !== 'undefined') {
       import('jsmpeg-player').then((JSMpeg) => {
         const Player = JSMpeg.Player;
 
-        // Automatically switch to wss if the page is loaded over https
         let secureWebSocketUrl = originalWebSocketUrl;
         if (window.location.protocol === 'https:' && originalWebSocketUrl.startsWith('ws://')) {
           secureWebSocketUrl = originalWebSocketUrl.replace('ws://', 'wss://');
@@ -35,13 +33,8 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         }
 
         try {
-          // If a player instance already exists, destroy it first.
-          if (playerRef.current) {
-            playerRef.current.destroy();
-            console.log('Previous JSMpeg player instance destroyed.');
-          }
-
           console.log(`Initializing JSMpeg player for URL: ${secureWebSocketUrl}`);
+          // Assign the new player instance to the ref
           playerRef.current = new Player(secureWebSocketUrl, {
             canvas: canvasRef.current,
             autoplay: true,
@@ -56,27 +49,24 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         } catch (e: any) {
           console.error("Failed to initialize JSMpeg player:", e);
           setError(`無法連接到串流。請確認串流伺服器正在執行且位址正確: ${secureWebSocketUrl} (錯誤: ${e.message})`);
-          if (playerRef.current) {
-            playerRef.current.destroy();
-            playerRef.current = null;
-          }
         }
       });
     }
 
-    // Cleanup function: this will be called when the component unmounts or dependencies change
+    // Centralized cleanup function
     return () => {
       if (playerRef.current) {
         try {
           playerRef.current.destroy();
-          playerRef.current = null;
           console.log('JSMpeg player destroyed on cleanup.');
         } catch (e) {
           console.error("Error destroying JSMpeg player during cleanup:", e);
+        } finally {
+          playerRef.current = null;
         }
       }
     };
-  }, [isStreamAvailable, originalWebSocketUrl, dog.id]); // Re-run effect if the dog (and its URL) changes
+  }, [isStreamAvailable, originalWebSocketUrl, dog.id]);
 
 
   return (
