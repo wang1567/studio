@@ -14,12 +14,12 @@ export const LiveStreamViewer = ({ streamUrl }: LiveStreamViewerProps) => {
   const [currentStreamUrl, setCurrentStreamUrl] = useState('');
 
   useEffect(() => {
-    // ngrok provides an MJPEG stream which needs a target path.
-    // The server serves it at /stream.
+    // The new server package provides the MJPEG stream at a specific path.
+    // The default path is /[stream_name].mjpg
     // We also add a random query param to try and bypass caching.
     if (streamUrl) {
       const url = new URL(streamUrl);
-      url.pathname = '/stream';
+      url.pathname = '/live_stream.mjpg'; // Use the stream name from the server
       url.search = `t=${Date.now()}`;
       setCurrentStreamUrl(url.toString());
     }
@@ -68,7 +68,7 @@ export const LiveStreamViewer = ({ streamUrl }: LiveStreamViewerProps) => {
           <AlertTitle>串流連線失敗</AlertTitle>
           <AlertDescription>
             <p>無法連接至即時影像。</p>
-            <p className="mt-2">請確認您本地電腦上的 `node src/stream-server.js` 以及 `ngrok http 8082` 指令是否都正在執行中。</p>
+            <p className="mt-2">請確認您本地電腦上的 `node src/stream-server.js` 以及 `ngrok` 指令是否都正在執行中，並且已在瀏覽器中手動授權 ngrok 位址。</p>
           </AlertDescription>
         </Alert>
       )}
