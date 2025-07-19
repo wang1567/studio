@@ -107,46 +107,74 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   }, []);
 
 
+  const fetchProfileAndSet = async (user: SupabaseUser | null) => {
+    if (!user) {
+      setProfile(null);
+      return;
+    }
+    try {
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single<DbProfile>();
+
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error('讀取個人資料時發生錯誤:', profileError);
+        setProfile(null);
+      } else if (profileData) {
+        setProfile({
+          id: profileData.id,
+          role: profileData.role as UserRole,
+          fullName: profileData.full_name,
+          avatarUrl: profileData.avatar_url,
+          updatedAt: profileData.updated_at,
+        });
+      } else {
+        setProfile(null);
+      }
+    } catch (e) {
+      console.error("處理個人資料時發生未預期的錯誤:", e);
+      setProfile(null);
+    }
+  };
+
   useEffect(() => {
+    const initializeSession = async () => {
+      setIsLoadingAuth(true);
+      const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error("Error getting initial session:", error);
+      }
+      
+      const currentUser = initialSession?.user ?? null;
+      setSession(initialSession);
+      setUser(currentUser);
+      
+      // Fetch profile concurrently with session check.
+      await fetchProfileAndSet(currentUser);
+      
+      setIsLoadingAuth(false);
+    };
+
+    initializeSession();
+
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setIsLoadingAuth(true);
-        resetDogState();
+      async (_event, newSession) => {
+        // Only set loading if the user status actually changes.
+        const currentUser = newSession?.user ?? null;
+        if (currentUser?.id !== user?.id) {
+          setIsLoadingAuth(true);
+        }
         
-        const currentUser = session?.user ?? null;
-        setSession(session);
+        resetDogState();
+        setSession(newSession);
         setUser(currentUser);
+        await fetchProfileAndSet(currentUser);
 
-        try {
-          if (currentUser) {
-              const { data: profileData, error: profileError } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', currentUser.id)
-                .single<DbProfile>();
-
-              if (profileError && profileError.code !== 'PGRST116') {
-                console.error('讀取個人資料時發生錯誤:', profileError);
-                setProfile(null);
-              } else if (profileData) {
-                setProfile({
-                  id: profileData.id,
-                  role: profileData.role as UserRole,
-                  fullName: profileData.full_name,
-                  avatarUrl: profileData.avatar_url,
-                  updatedAt: profileData.updated_at,
-                });
-              } else {
-                setProfile(null);
-              }
-          } else {
-            setProfile(null);
-          }
-        } catch (e) {
-            console.error("處理個人資料時發生未預期的錯誤:", e);
-            setProfile(null);
-        } finally {
-            setIsLoadingAuth(false);
+        if (currentUser?.id !== user?.id) {
+           setIsLoadingAuth(false);
         }
       }
     );
@@ -154,7 +182,8 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [resetDogState]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetDogState]); // We intentionally omit `user` to avoid re-triggering on every profile update.
 
 
  const loadInitialDogData = useCallback(async (currentUserId: string | null) => {
@@ -168,33 +197,33 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     }
 
     try {
-        // Step 1: Fetch liked dogs data for "My Matches" page.
-        // This query joins user_dog_likes with the view to get full dog details for the specific user.
-        const { data: likedDogsData, error: likedDogsError } = await supabase
+        const likedDogsPromise = supabase
             .from('user_dog_likes')
             .select(`
                 dogs_for_adoption_view(*)
             `)
             .eq('user_id', currentUserId);
 
+        const allDogsPromise = supabase
+            .from('dogs_for_adoption_view')
+            .select('*');
+
+        const [likedDogsResult, allDogsResult] = await Promise.all([likedDogsPromise, allDogsPromise]);
+
+        const { data: likedDogsData, error: likedDogsError } = likedDogsResult;
         if (likedDogsError) {
             console.error("Error fetching liked dogs from Supabase:", likedDogsError);
             throw likedDogsError;
         }
-        
-        // Correctly parse the nested dog objects from the join result.
+
         const userLikedDbDogs = (likedDogsData || [])
-            .map(likeRecord => likeRecord.dogs_for_adoption_view) // Correctly extracts the nested object
-            .filter((dog): dog is DbDog => dog !== null && typeof dog === 'object'); // Filter out any nulls
+            .map(likeRecord => likeRecord.dogs_for_adoption_view)
+            .filter((dog): dog is DbDog => dog !== null && typeof dog === 'object');
             
         const userLikedDogs = userLikedDbDogs.map(mapDbDogToDogType);
         setLikedDogs(userLikedDogs);
 
-        // Step 2: Fetch all available dogs for the swipe interface from the view.
-        const { data: allDogsData, error: allDogsError } = await supabase
-            .from('dogs_for_adoption_view')
-            .select('*');
-
+        const { data: allDogsData, error: allDogsError } = allDogsResult;
         if (allDogsError) {
             console.error("Error fetching all dogs from Supabase:", allDogsError);
             throw allDogsError;
@@ -203,12 +232,9 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         const allDogs = allDogsData.map(mapDbDogToDogType);
         setMasterDogList(allDogs);
 
-        // Step 3: Populate the seenDogIds set with IDs of already liked dogs.
-        // This is used to filter them out from the swipe deck.
         const likedDogIdsSet = new Set(userLikedDogs.map(d => d.id));
         setSeenDogIds(likedDogIdsSet);
         
-        // Step 4: Determine dogs to swipe (all dogs minus the ones already liked).
         const unseenDogs = allDogs.filter(dog => !likedDogIdsSet.has(dog.id));
         setDogsToSwipe(unseenDogs);
 
@@ -357,10 +383,12 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
     if (profileError) {
       console.error('建立個人資料時發生錯誤:', profileError);
-      setIsLoadingAuth(false);
+      // Even if profile creation fails, the user is signed up. Don't set loading to false here.
+      // The auth listener will handle the state update.
       return { user: authData.user, error: '註冊成功，但建立個人資料失敗: ' + profileError.message };
     }
     
+    // Don't set loading to false here; the onAuthStateChange listener will manage it.
     return { user: authData.user, error: null };
   };
 
@@ -421,6 +449,10 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   };
 
   const deleteAccount = async (): Promise<{ error: string | null }> => {
+    if (!user) {
+       toast({ title: "錯誤", description: "使用者未登入。", variant: "destructive" });
+       return { error: "User not logged in" };
+    }
     const { error } = await supabase.rpc('delete_user_account');
     if (error) {
       console.error('Error deleting account:', error);
@@ -485,3 +517,5 @@ export const usePawsConnect = () => {
   }
   return context;
 };
+
+    
