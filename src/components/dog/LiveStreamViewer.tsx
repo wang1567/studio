@@ -6,11 +6,14 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, VideoOff } from 'lucide-react';
 
 interface LiveStreamViewerProps {
-  streamUrl: string;
+  streamUrl: string; // This prop is now unused but kept for interface consistency
 }
 
 export const LiveStreamViewer = ({ streamUrl }: LiveStreamViewerProps) => {
   const [streamStatus, setStreamStatus] = useState<'loading' | 'active' | 'error'>('loading');
+
+  // The actual stream path is now handled by Next.js rewrites.
+  const streamPath = '/stream';
 
   const handleStreamError = () => {
     setStreamStatus('error');
@@ -32,7 +35,7 @@ export const LiveStreamViewer = ({ streamUrl }: LiveStreamViewerProps) => {
 
       {/* The image tag is always present but hidden until loaded to handle events correctly */}
       <img
-        src={streamUrl}
+        src={streamPath}
         alt="Live Stream"
         onError={handleStreamError}
         onLoad={handleStreamLoad}
