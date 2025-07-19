@@ -75,7 +75,7 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
       dateAdministered: vr.dateAdministered || '',
       nextDueDate: vr.nextDueDate || undefined,
     })),
-    liveStreamUrl: dbViewDog.live_stream_url ?? undefined,
+    liveStreamUrl: dbViewDog.live_stream_url ? dbViewDog.live_stream_url : undefined,
     status: dbViewDog.status === 'Available' || dbViewDog.status === 'Pending' || dbViewDog.status === 'Adopted' ? dbViewDog.status : 'Available',
     location: dbViewDog.location || '未知地點',
     personalityTraits: personalityTraits.length > 0 ? personalityTraits : ['個性溫和'],
@@ -206,13 +206,13 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     }
 
     try {
-        // Fetch Liked Dogs (for "My Matches" page)
+        // Fetch Liked Dogs (for "My Matches" page) based on `user_dog_likes`
         const likedDogsPromise = supabase
             .from('user_dog_likes')
             .select(`dogs_for_adoption_view(*)`)
             .eq('user_id', currentUserId);
 
-        // Fetch All Dogs (for swiping)
+        // Fetch All Available Dogs (for swiping) from `dogs_for_adoption_view`
         const allDogsPromise = supabase
             .from('dogs_for_adoption_view')
             .select('*');
