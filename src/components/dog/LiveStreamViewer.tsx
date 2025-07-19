@@ -1,26 +1,46 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Loader2, VideoOff } from 'lucide-react';
 
 interface LiveStreamViewerProps {
-  streamUrl: string; // This prop is now unused but kept for interface consistency
+  streamUrl: string; // Now receives the full public ngrok URL
 }
 
 export const LiveStreamViewer = ({ streamUrl }: LiveStreamViewerProps) => {
   const [streamStatus, setStreamStatus] = useState<'loading' | 'active' | 'error'>('loading');
+  const [currentStreamUrl, setCurrentStreamUrl] = useState('');
 
-  // The actual stream path is handled by the Next.js rewrite in next.config.ts
-  const streamPath = '/stream';
+  useEffect(() => {
+    // ngrok provides an MJPEG stream which needs a target path.
+    // The server serves it at /stream.
+    // We also add a random query param to try and bypass caching.
+    if (streamUrl) {
+      const url = new URL(streamUrl);
+      url.pathname = '/stream';
+      url.search = `t=${Date.now()}`;
+      setCurrentStreamUrl(url.toString());
+    }
+  }, [streamUrl]);
 
   const handleStreamError = () => {
+    console.error("Stream error for URL:", currentStreamUrl);
     setStreamStatus('error');
   };
   
   const handleStreamLoad = () => {
     setStreamStatus('active');
+  }
+
+  if (!currentStreamUrl) {
+     return (
+        <div className="w-full h-full flex flex-col items-center justify-center bg-card rounded-lg shadow-inner p-4 text-muted-foreground">
+          <VideoOff className="w-8 h-8 mb-4" />
+          <p className="text-lg font-semibold">未提供即時影像位址</p>
+        </div>
+      );
   }
 
   return (
@@ -33,13 +53,11 @@ export const LiveStreamViewer = ({ streamUrl }: LiveStreamViewerProps) => {
         </div>
       )}
 
-      {/* The image tag is now always present but hidden until loaded to handle events correctly */}
       <img
-        src={streamPath}
+        src={currentStreamUrl}
         alt="Live Stream"
         onError={handleStreamError}
         onLoad={handleStreamLoad}
-        // Use inline style to avoid Tailwind purging issues and ensure visibility is correct
         style={{ display: streamStatus === 'active' ? 'block' : 'none' }}
         className="w-full max-w-full max-h-full rounded-md object-contain"
       />
@@ -50,7 +68,7 @@ export const LiveStreamViewer = ({ streamUrl }: LiveStreamViewerProps) => {
           <AlertTitle>串流連線失敗</AlertTitle>
           <AlertDescription>
             <p>無法連接至即時影像。</p>
-            <p className="mt-2">這可能是因為您本地電腦上的 `ngrok` 隧道已中斷，或是攝影機未開啟。請檢查您本地的終端機狀態。</p>
+            <p className="mt-2">請確認您本地電腦上的 `node src/stream-server.js` 以及 `ngrok http 8082` 指令是否都正在執行中。</p>
           </AlertDescription>
         </Alert>
       )}

@@ -50,6 +50,10 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
   const meaningfulConditions = healthRecordsData?.conditions?.filter(
     c => c && c.trim() && c.trim().toLowerCase() !== 'none' && c.trim() !== '無'
   ) || [];
+  
+  // Use a placeholder for the liveStreamUrl that will be replaced by the client logic.
+  // The actual URL is dynamic based on the ngrok tunnel.
+  const hasStreamData = !!dbViewDog.live_stream_url && dbViewDog.live_stream_url.startsWith('https://');
 
   return {
     id: dbViewDog.id,
@@ -75,7 +79,7 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
       dateAdministered: vr.dateAdministered || '',
       nextDueDate: vr.nextDueDate || undefined,
     })),
-    liveStreamUrl: dbViewDog.live_stream_url ? dbViewDog.live_stream_url : undefined,
+    liveStreamUrl: hasStreamData ? dbViewDog.live_stream_url : undefined,
     status: dbViewDog.status === 'Available' || dbViewDog.status === 'Pending' || dbViewDog.status === 'Adopted' ? dbViewDog.status : 'Available',
     location: dbViewDog.location || '未知地點',
     personalityTraits: personalityTraits.length > 0 ? personalityTraits : ['個性溫和'],
@@ -145,8 +149,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       try {
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         
-        // This error is expected if the user is not logged in or token is invalid.
-        // We log it but don't treat it as a critical failure.
         if (error) {
           console.log("Info: Error getting initial session:", error.message);
         }
@@ -178,7 +180,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         const currentUser = newSession?.user ?? null;
         const previousUserId = user?.id;
 
-        // Only show loading state if the user's login status actually changes.
         if (currentUser?.id !== previousUserId) {
           setIsLoadingAuth(true);
         }
@@ -189,7 +190,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         if (currentUser) {
             await fetchProfileAndSet(currentUser);
         } else {
-            // If user logs out, reset all state.
             setProfile(null);
             resetDogState();
         }
@@ -218,20 +218,17 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     }
 
     try {
-        // Fetch Liked Dogs (for "My Matches" page) based on `user_dog_likes`
         const likedDogsPromise = supabase
             .from('user_dog_likes')
             .select(`dogs_for_adoption_view(*)`)
             .eq('user_id', currentUserId);
 
-        // Fetch All Available Dogs (for swiping) from `dogs_for_adoption_view`
         const allDogsPromise = supabase
             .from('dogs_for_adoption_view')
             .select('*');
 
         const [likedDogsResult, allDogsResult] = await Promise.all([likedDogsPromise, allDogsPromise]);
 
-        // Process Liked Dogs
         const { data: likedDogsData, error: likedDogsError } = likedDogsResult;
         if (likedDogsError) {
             console.error("Error fetching liked dogs from Supabase:", likedDogsError);
@@ -243,7 +240,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         const userLikedDogs = userLikedDbDogs.map(mapDbDogToDogType);
         setLikedDogs(userLikedDogs);
 
-        // Process All Dogs for Swiping
         const { data: allDogsData, error: allDogsError } = allDogsResult;
         if (allDogsError) {
             console.error("Error fetching all dogs from Supabase:", allDogsError);
@@ -278,7 +274,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     if (!isLoadingAuth && user) {
       loadInitialDogData(user.id);
     } else if (!isLoadingAuth && !user) {
-      setIsLoadingDogs(false); // Not logged in, so not loading dogs.
+      setIsLoadingDogs(false); 
       resetDogState();
     }
   }, [isLoadingAuth, user, loadInitialDogData, resetDogState]);
@@ -311,27 +307,26 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
     try {
       setIsLiking(prev => new Set(prev).add(dogId));
-      passDog(dogId); // Optimistically remove from swipe list
+      passDog(dogId); 
 
       const { error: insertError } = await supabase
         .from('user_dog_likes')
         .insert({ user_id: user.id, dog_id: dogId });
       
       if (insertError) {
-        if (insertError.code !== '23505') { // '23505' is the code for unique_violation, we can ignore it
+        if (insertError.code !== '23505') { 
             console.error("Error saving like to Supabase:", insertError);
             toast({
               variant: "destructive",
               title: "按讚失敗",
               description: "無法儲存您的選擇。請檢查您的網路連線或稍後再試。",
             });
-             // Revert optimistic update
             setSeenDogIds(prev => {
               const newSet = new Set(prev);
               newSet.delete(dogId);
               return newSet;
             });
-            return; // Exit if there was a critical error
+            return; 
         }
       }
 
@@ -403,12 +398,9 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
     if (profileError) {
       console.error('建立個人資料時發生錯誤:', profileError);
-      // Even if profile creation fails, the user is signed up. Don't set loading to false here.
-      // The auth listener will handle the state update.
       return { user: authData.user, error: '註冊成功，但建立個人資料失敗: ' + profileError.message };
     }
     
-    // Don't set loading to false here; the onAuthStateChange listener will manage it.
     return { user: authData.user, error: null };
   };
 
@@ -419,7 +411,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       setIsLoadingAuth(false);
       return { error: error.message || '登出時發生錯誤。' };
     }
-    // Auth listener will handle state reset
     return { error: null };
   };
 
@@ -478,13 +469,12 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       console.error('Error deleting account:', error);
       return { error: error.message };
     }
-    // The onAuthStateChange listener will handle logging out the user state
     return { error: null };
   };
 
   const sendPasswordResetEmail = async (email: string): Promise<{ error: string | null }> => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/`, // Or a specific password reset page
+      redirectTo: `${window.location.origin}/`, 
     });
     if (error) {
       console.error('Error sending password reset email:', error);
