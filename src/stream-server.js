@@ -33,7 +33,6 @@ app.get('/stream', (req, res) => {
   const ffmpegCommand = [
     '-hide_banner',
     '-rtsp_transport', 'tcp',
-    '-stimeout', '5000000', // 5-second timeout for connection
     '-i', rtspUrl,
     '-f', 'mjpeg',
     '-q:v', '7', // Quality level (2-31, lower is better)
