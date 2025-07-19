@@ -29,8 +29,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   const [isLoading, setIsLoading] = useState(true);
 
   // --- IMPORTANT CONFIGURATION ---
-  // This IP must be the PUBLIC IP of the machine running stream-server.js
-  // or a domain name pointing to it. '192.168.x.x' will not work from the internet.
+  // This must be the PUBLIC IP or domain name of the machine running stream-server.js
   const streamServerIp = '34.80.203.111'; 
   const streamServerPort = 8081;
   // --- CONFIGURATION END ---
@@ -43,31 +42,28 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
 
     // ALWAYS use ws://. The browser might block it on an https site,
     // requiring the user to manually allow "insecure content".
-    // Attempting to use wss:// will fail if the stream-server isn't configured for SSL.
     const webSocketUrl = `ws://${streamServerIp}:${streamServerPort}`;
-    console.log("[LiveStream] Attempting to connect via ws:// protocol.");
+    console.log(`[LiveStream] Attempting to connect to: ${webSocketUrl}`);
 
+    const libraryLoadTimeout = setTimeout(() => {
+        if (!JSMpeg) {
+          console.error("[LiveStream] JSMpeg library failed to load after timeout.");
+          setError("播放器程式庫載入失敗，請重新整理頁面。");
+          setIsLoading(false);
+        }
+      }, 5000);
 
     if (!JSMpeg || !canvasRef.current) {
-        const checkLibraryTimeout = setTimeout(() => {
-          if (!JSMpeg) {
-            console.error("[LiveStream] JSMpeg library has not loaded after a delay.");
-            setError("播放器程式庫載入失敗，請重新整理頁面。");
-            setIsLoading(false);
-          } else if (!canvasRef.current) {
-             console.error("[LiveStream] Canvas element is not available.");
-             setError("播放器畫布渲染失敗。");
-             setIsLoading(false);
-          }
-        }, 3000);
-        console.warn("[LiveStream] JSMpeg library or canvas not ready. Will retry or timeout.");
-        return () => clearTimeout(checkLibraryTimeout);
+        console.warn("[LiveStream] JSMpeg library or canvas not ready yet.");
+        return () => clearTimeout(libraryLoadTimeout);
     }
+
+    clearTimeout(libraryLoadTimeout);
     
     let player: any;
     
     try {
-      console.log(`[LiveStream] Preparing to initialize JSMpeg player. Target URL: ${webSocketUrl}`);
+      console.log(`[LiveStream] Initializing JSMpeg.Player...`);
       const Player = JSMpeg.Player;
       if (!Player) {
         throw new Error("JSMpeg.Player is not available. The module might not have loaded correctly.");
@@ -86,19 +82,19 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         },
         onStalled: () => {
             console.warn('[LiveStream] Player stalled. Waiting for data...');
-            setIsLoading(true); // Can show loading indicator if stream pauses
+            setIsLoading(true);
         },
         onEnded: () => {
             console.log('[LiveStream] Stream ended.');
         },
         onError: (e: any) => {
-            const errorMessage = e?.message || '未知串流錯誤';
+            const errorMessage = e?.message || (typeof e === 'string' ? e : '未知串流錯誤');
             console.error('[LiveStream] FATAL: Player reported an error:', errorMessage, e);
-            setError(`播放器回報錯誤：${errorMessage}。請檢查後端伺服器日誌與網路連線。`);
+            setError(`無法連接至影像串流：${errorMessage}。請確認後端伺服器是否正常運作，或在瀏覽器設定中允許不安全的內容。`);
             setIsLoading(false);
         }
       });
-      console.log("[LiveStream] JSMpeg.Player instance created successfully. Waiting for 'onPlay' event...");
+      console.log("[LiveStream] JSMpeg.Player instance created. Waiting for 'onPlay' or 'onError' event...");
       
     } catch (e: any) {
       console.error("[LiveStream] FATAL: Failed to initialize JSMpeg player in try-catch block:", e);
@@ -108,26 +104,21 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
 
     return () => {
       console.log('[LiveStream] Cleanup function called.');
-      if (playerRef.current) {
+      // Final, most robust cleanup logic:
+      // Only destroy the player if the ref was successfully set (meaning onPlay was called)
+      // AND if its internal source object exists. This prevents the "Cannot read properties of null (reading 'close')" error.
+      if (playerRef.current && playerRef.current.source) {
         try {
           console.log('[LiveStream] Attempting to destroy successfully referenced player instance...');
           playerRef.current.destroy();
-          playerRef.current = null;
           console.log('[LiveStream] Successfully referenced JSMpeg player instance destroyed.');
         } catch (e) {
           console.error("[LiveStream] Failed to destroy referenced player instance during cleanup:", e);
-        }
-      } else if (player) {
-         // This is a fallback for the case where the player was created but never played.
-         // We still need to attempt to destroy it.
-        try {
-            console.log("[LiveStream] Attempting to destroy un-referenced player instance during cleanup...");
-            player.destroy();
-        } catch(e) {
-            console.error("[LiveStream] Failed to destroy un-referenced player instance during cleanup:", e);
+        } finally {
+            playerRef.current = null;
         }
       } else {
-         console.log("[LiveStream] No referenced player to destroy, cleanup finished.");
+         console.log("[LiveStream] No valid, referenced player to destroy. Cleanup finished.");
       }
     };
   }, [dog.id, dog.name]); 
@@ -159,7 +150,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
                 <Loader2 className="h-12 w-12 text-primary animate-spin mb-4"/>
                 <h3 className="text-lg font-semibold text-primary">正在連接影像...</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  請稍候片刻。
+                  請稍候片刻。若長時間無回應，請確認您的瀏覽器是否允許不安全的內容。
                 </p>
             </div>
           )}
@@ -177,7 +168,7 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         <Alert>
             <AlertTitle>關於即時影像</AlertTitle>
             <AlertDescription>
-              此功能將嘗試連接至一個獨立的後端串流服務。請確保該服務正在運作，並且您的網路連線是通暢的。
+              此功能將嘗試使用 `ws://` 協定連接至串流伺服器。若您的網站使用 `https://`，您可能需要在瀏覽器網址列旁點擊「不安全」或鎖頭圖示，並手動**允許載入不安全的內容**。
             </AlertDescription>
         </Alert>
       </CardContent>
