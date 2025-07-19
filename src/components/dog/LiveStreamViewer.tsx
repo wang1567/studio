@@ -29,7 +29,9 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
   const [isLoading, setIsLoading] = useState(true);
 
   // --- IMPORTANT CONFIGURATION ---
-  const streamServerIp = '192.168.88.103'; 
+  // This IP must be the PUBLIC IP of the machine running stream-server.js
+  // or a domain name pointing to it. '192.168.x.x' will not work from the internet.
+  const streamServerIp = '34.80.203.111'; 
   const streamServerPort = 8081;
   // --- CONFIGURATION END ---
 
@@ -39,13 +41,12 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
     setIsLoading(true);
     console.log(`[LiveStream] useEffect triggered for dog: ${dog.name} (${dog.id}). State reset.`);
 
-    let webSocketUrl = `ws://${streamServerIp}:${streamServerPort}`;
-    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-      webSocketUrl = `wss://${streamServerIp}:${streamServerPort}`;
-      console.log("[LiveStream] HTTPS detected, using wss:// protocol.");
-    } else {
-      console.log("[LiveStream] HTTP detected, using ws:// protocol.");
-    }
+    // ALWAYS use ws://. The browser might block it on an https site,
+    // requiring the user to manually allow "insecure content".
+    // Attempting to use wss:// will fail if the stream-server isn't configured for SSL.
+    const webSocketUrl = `ws://${streamServerIp}:${streamServerPort}`;
+    console.log("[LiveStream] Attempting to connect via ws:// protocol.");
+
 
     if (!JSMpeg || !canvasRef.current) {
         const checkLibraryTimeout = setTimeout(() => {
@@ -116,11 +117,20 @@ export const LiveStreamViewer = ({ dog }: LiveStreamViewerProps) => {
         } catch (e) {
           console.error("[LiveStream] Failed to destroy referenced player instance during cleanup:", e);
         }
+      } else if (player) {
+         // This is a fallback for the case where the player was created but never played.
+         // We still need to attempt to destroy it.
+        try {
+            console.log("[LiveStream] Attempting to destroy un-referenced player instance during cleanup...");
+            player.destroy();
+        } catch(e) {
+            console.error("[LiveStream] Failed to destroy un-referenced player instance during cleanup:", e);
+        }
       } else {
          console.log("[LiveStream] No referenced player to destroy, cleanup finished.");
       }
     };
-  }, [dog.id]); 
+  }, [dog.id, dog.name]); 
 
   return (
     <Card className="shadow-lg h-full flex flex-col">
