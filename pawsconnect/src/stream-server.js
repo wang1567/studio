@@ -15,6 +15,7 @@ const port = 8082; // This server runs on your LOCAL machine now.
 const rtspUrl = 'rtsp://YOUR_USERNAME:YOUR_PASSWORD@192.168.88.101:554/stream1';
 console.log(`[Config] Attempting to connect to LOCAL RTSP URL: ${rtspUrl.replace(/:.*@/, '://****:****@')}`);
 
+
 app.use(cors());
 
 app.get('/stream', (req, res) => {
@@ -29,14 +30,11 @@ app.get('/stream', (req, res) => {
     'Expires': '0',
   });
 
+  // Using the most basic, simplified ffmpeg command for maximum compatibility.
   const ffmpegCommand = [
-    '-hide_banner',
-    '-rtsp_transport', 'tcp',
     '-i', rtspUrl,
     '-f', 'mjpeg',
-    '-q:v', '7', // Quality level (2-31, lower is better)
-    '-r', '15', // Frame rate
-    '-s', '640x480', // Video size
+    '-q:v', '7',
     'pipe:1'
   ];
 

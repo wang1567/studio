@@ -30,14 +30,11 @@ app.get('/stream', (req, res) => {
     'Expires': '0',
   });
 
+  // Using the most basic, simplified ffmpeg command for maximum compatibility.
   const ffmpegCommand = [
-    '-hide_banner',
-    '-rtsp_transport', 'tcp',
     '-i', rtspUrl,
     '-f', 'mjpeg',
-    '-q:v', '7', // Quality level (2-31, lower is better)
-    '-r', '15', // Frame rate
-    '-s', '640x480', // Video size
+    '-q:v', '7',
     'pipe:1'
   ];
 
