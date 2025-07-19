@@ -8,9 +8,8 @@ const app = express();
 const port = 8082;
 
 // --- Configuration ---
-// 使用者透過 ngrok 取得的公開 RTSP 位址
-// 原本的私有位址是 rtsp://...<user>:<pass>...@192.168.88.101:554/stream1
-const rtspUrl = process.env.RTSP_URL || 'rtsp://0.tcp.jp.ngrok.io:11783/stream1';
+// 使用 ngrok 建立的公開 TCP 位址
+const rtspUrl = 'rtsp://0.tcp.jp.ngrok.io:11783/stream1';
 console.log(`[Config] Configured RTSP URL: ${rtspUrl}`);
 
 app.use(cors());
