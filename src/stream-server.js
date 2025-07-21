@@ -28,18 +28,17 @@ app.get('/live_stream.mjpg', (req, res) => {
     });
 
     // Spawn an FFmpeg process.
-    // These arguments are robust and tested for converting RTSP to MJPEG.
+    // These arguments are the most direct and robust for this purpose.
     const ffmpegCommand = [
-        '-hide_banner',    // Suppress version and build info
         '-rtsp_transport', 'tcp', // Force TCP transport for reliability
         '-i', rtspUrl,
+        '-an',             // No audio
+        '-c:v', 'copy',    // Directly copy the video stream without re-encoding
         '-f', 'mjpeg',     // Output format: Motion JPEG
-        '-q:v', '7',       // Video quality (lower is better, 7 is a good balance)
-        '-r', '15',        // Frame rate
         'pipe:1'           // Output to stdout
     ];
 
-    const ffmpeg = spawn('ffmpeg', ffmpegCommand);
+    const ffmpeg = spawn('ffmpeg', ffmpegCommand, { stdio: ['ignore', 'pipe', 'pipe'] });
     console.log('[FFmpeg] Spawning FFmpeg process...');
 
     // Pipe the FFmpeg's output (the video data) to the client's response.
