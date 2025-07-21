@@ -23,14 +23,6 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-       {
-        protocol: 'https',
-        hostname: '*.ngrok-free.app', // Allow images from ngrok's dynamic domain
-      },
-       {
-        protocol: 'https',
-        hostname: '*.ngrok.io', // More general rule for ngrok
-      },
     ],
   },
 };
