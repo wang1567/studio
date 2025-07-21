@@ -16,20 +16,20 @@ const webSocketPort = 8083; // Required by the package, but we won't use it dire
 console.log(`[Config] Attempting to connect to LOCAL RTSP URL: ${rtspUrl.replace(/:.*@/, '://****:****@')}`);
 
 const stream = new Stream({
-  name: 'PawsConnect Live Stream',
-  streamUrl: rtspUrl,
-  wsPort: webSocketPort,
-  // These are the ffmpeg options. We are explicitly setting the quality for stability.
-  ffmpegOptions: {
-    '-stats': '',
-    '-r': 30, // 30 frames per second
-    '-q:v': 7 // Video quality (lower is better, 7 is a good balance)
-  }
+    name: 'PawsConnect Live Stream',
+    streamUrl: rtspUrl,
+    wsPort: webSocketPort,
+    // These are the ffmpeg options. We are explicitly setting the quality for stability.
+    ffmpegOptions: {
+        '-stats': '',
+        '-r': 30, // 30 frames per second
+        '-q:v': 7 // Video quality (lower is better, 7 is a good balance)
+    }
 });
 
 stream.on('exitWithError', () => {
     console.error('[FFmpeg Error] The FFmpeg process exited with an error. This is often due to an incorrect RTSP URL, wrong credentials, or a network issue with the camera.');
-    stream.stop(); 
+    stream.stop();
 });
 
 console.log(`[Server] MJPEG Stream server is starting on port ${streamPort}`);
