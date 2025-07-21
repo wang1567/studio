@@ -7,19 +7,12 @@ import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import { HealthRecordsDisplay } from './HealthRecordsDisplay';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Heart, X, Video, Link as LinkIcon, Webcam } from 'lucide-react';
+import { MapPin, Heart, X, Video, AlertTriangle } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import Link from 'next/link';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import React, { useEffect, useRef, useState } from 'react';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
-import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
-
-// A simple in-memory store for signaling, not for production
-const signalStore: { [key: string]: any } = {};
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const translateGender = (gender: 'Male' | 'Female' | 'Unknown' | undefined): string => {
   switch (gender) {
@@ -32,120 +25,43 @@ const translateGender = (gender: 'Male' | 'Female' | 'Unknown' | undefined): str
 
 
 const LiveStreamViewer = ({ dog }: { dog: Dog }) => {
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const [peer, setPeer] = useState<any>(null);
-    const [connectionId, setConnectionId] = useState('');
-    const [isConnected, setIsConnected] = useState(false);
-    const [isConnecting, setIsConnecting] = useState(false);
-    const { toast } = useToast();
-    
-    // Dynamically import simple-peer only on the client-side
-    const Peer = useRef<any>(null);
-    useEffect(() => {
-        import('simple-peer').then(module => {
-            Peer.current = module.default;
-        });
-    }, []);
-
-    const connectToStream = () => {
-        if (!Peer.current) {
-            toast({ title: "Error", description: "Component not ready yet.", variant: "destructive" });
-            return;
-        }
-        if (!connectionId) {
-            toast({ title: "Error", description: "Please enter a Connection ID.", variant: "destructive" });
-            return;
-        }
-
-        setIsConnecting(true);
-
-        const newPeer = new Peer.current({ initiator: false });
-        
-        newPeer.on('signal', (data: any) => {
-            signalStore[`answer-for-${connectionId}`] = data;
-        });
-
-        newPeer.on('stream', (stream: MediaStream) => {
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-            }
-            setIsConnected(true);
-            setIsConnecting(false);
-        });
-        
-        newPeer.on('connect', () => {
-            toast({ title: "Connected!", description: "Successfully connected to the stream." });
-        });
-        
-        newPeer.on('close', () => {
-            toast({ title: "Stream Ended", description: "The broadcaster has ended the stream.", variant: "destructive" });
-            if(videoRef.current) videoRef.current.srcObject = null;
-            setIsConnected(false);
-            setPeer(null);
-        });
-        
-        newPeer.on('error', (err: Error) => {
-            console.error('Peer error:', err);
-            toast({ title: 'Connection Error', description: "Could not connect. Check the ID or the broadcaster's status.", variant: 'destructive' });
-            setIsConnecting(false);
-            setIsConnected(false);
-        });
-
-        const initiatorSignal = signalStore[connectionId];
-        if (initiatorSignal) {
-            newPeer.signal(initiatorSignal);
-        } else {
-             toast({ title: "Error", description: "Invalid Connection ID or broadcaster is offline.", variant: "destructive" });
-             setIsConnecting(false);
-             return;
-        }
-        
-        setPeer(newPeer);
-    };
-    
-     useEffect(() => {
-        // Cleanup on component unmount
-        return () => {
-            if (peer) {
-                peer.destroy();
-            }
-        };
-    }, [peer]);
-
+  if (!dog.liveStreamUrl) {
     return (
-        <div className="space-y-4">
-            <Alert>
-                <Webcam className="h-4 w-4" />
-                <AlertTitle>How to View Live Stream</AlertTitle>
-                <AlertDescription>
-                    1. The caregiver must go to the <Link href="/broadcast" target="_blank" className="font-bold text-primary hover:underline">Broadcast Page</Link> and start streaming to get a Connection ID.
-                    <br />
-                    2. Paste that ID here and click 'Connect'.
-                </AlertDescription>
-            </Alert>
-            <div className="space-y-2">
-                <Label htmlFor="connection-id">Broadcaster's Connection ID</Label>
-                <div className="flex gap-2">
-                    <Input
-                        id="connection-id"
-                        placeholder="Enter Connection ID from broadcaster"
-                        value={connectionId}
-                        onChange={(e) => setConnectionId(e.target.value)}
-                        disabled={isConnecting || isConnected}
-                    />
-                    <Button onClick={connectToStream} disabled={isConnecting || isConnected}>
-                        {isConnecting ? 'Connecting...' : (isConnected ? 'Connected' : 'Connect')}
-                    </Button>
-                </div>
-            </div>
-            <div className="rounded-lg overflow-hidden bg-black aspect-video flex items-center justify-center text-white">
-                <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover"></video>
-                {!isConnected && <p>Stream will appear here</p>}
-            </div>
-        </div>
+      <div className="flex flex-col items-center justify-center h-full aspect-video bg-muted rounded-lg p-8 text-center">
+        <AlertTriangle className="w-12 h-12 text-muted-foreground mb-4" />
+        <h3 className="text-xl font-semibold">無即時影像</h3>
+        <p className="text-muted-foreground">此狗狗目前未提供即時影像串流。</p>
+      </div>
     );
-}
+  }
 
+  return (
+    <div className="space-y-4">
+      <Alert>
+        <AlertTitle>即時串流由第三方服務提供</AlertTitle>
+        <AlertDescription>
+          這個影像是透過外部串流服務（例如 RTSP.me）嵌入的。影像的品質和穩定性取決於該服務。
+        </AlertDescription>
+      </Alert>
+      <div className="aspect-video w-full bg-black rounded-lg overflow-hidden shadow-lg">
+        <iframe
+          src={dog.liveStreamUrl}
+          title={`${dog.name} - Live Stream`}
+          allow="autoplay; encrypted-media; picture-in-picture"
+          allowFullScreen
+          className="w-full h-full border-0"
+        ></iframe>
+      </div>
+    </div>
+  );
+};
+
+
+interface DogDetailsModalProps {
+  dog: Dog | null;
+  isOpen: boolean;
+  onClose: () => void;
+}
 
 export const DogDetailsModal = ({ dog, isOpen, onClose }: DogDetailsModalProps) => {
   if (!dog) return null;
@@ -173,9 +89,9 @@ export const DogDetailsModal = ({ dog, isOpen, onClose }: DogDetailsModalProps) 
             <div className="p-6">
                 <Tabs defaultValue="photos">
                     <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="photos">Photos & Info</TabsTrigger>
+                        <TabsTrigger value="photos">照片與資訊</TabsTrigger>
                         <TabsTrigger value="livestream">
-                            <Video className="w-4 h-4 mr-2" /> Live Stream
+                            <Video className="w-4 h-4 mr-2" /> 即時影像
                         </TabsTrigger>
                     </TabsList>
                     <TabsContent value="photos" className="mt-4">

@@ -28,7 +28,7 @@ export interface Database {
           description: string | null // text
           location: string | null // text
           personality_traits: string[] | null // ARRAY
-          webrtc_id: string | null // text
+          live_stream_url: string | null // text
         }
         Insert: {
           id?: string // uuid
@@ -42,7 +42,7 @@ export interface Database {
           description?: string | null
           location?: string | null
           personality_traits?: string[] | null
-          webrtc_id?: string | null
+          live_stream_url?: string | null
         }
         Update: {
           id?: string
@@ -56,7 +56,7 @@ export interface Database {
           description?: string | null
           location?: string | null
           personality_traits?: string[] | null
-          webrtc_id?: string | null
+          live_stream_url?: string | null
         }
         Relationships: [
           {
@@ -259,7 +259,7 @@ export interface Database {
           description: string | null; // text from pets.description
           location: string | null; // text from pets.location
           personality_traits: string[] | null; // ARRAY from pets.personality_traits
-          webrtc_id: string | null; // text from pets.webrtc_id
+          live_stream_url: string | null; // text from pets.live_stream_url
           status: Database["public"]["Enums"]["dog_status_enum"] | null;
           // The JSON aggregates need to be defined in the view's SQL definition
           health_records: Json | null;

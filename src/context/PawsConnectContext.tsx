@@ -75,7 +75,7 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
       dateAdministered: vr.dateAdministered || '',
       nextDueDate: vr.nextDueDate || undefined,
     })),
-    webRtcId: dbViewDog.webrtc_id || undefined,
+    liveStreamUrl: dbViewDog.live_stream_url || undefined,
     status: dbViewDog.status === 'Available' || dbViewDog.status === 'Pending' || dbViewDog.status === 'Adopted' ? dbViewDog.status : 'Available',
     location: dbViewDog.location || '未知地點',
     personalityTraits: personalityTraits.length > 0 ? personalityTraits : ['個性溫和'],
@@ -146,8 +146,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         
         if (error) {
-           // This specific error is expected when the user is not logged in.
-           // We can safely ignore it and only log other, unexpected errors.
            const authError = error as AuthApiError;
            if (!(authError.message === 'Invalid Refresh Token: Refresh Token Not Found' && authError.status === 400)) {
                console.error("Error getting initial session:", error);

@@ -28,7 +28,7 @@ export interface Dog {
   healthRecords: HealthRecord; // Stored as a map/object in Firestore
   feedingSchedule: FeedingSchedule; // Stored as a map/object in Firestore
   vaccinationRecords: VaccinationRecord[]; // Stored as an array of maps/objects in Firestore
-  webRtcId?: string; // Optional: ID for WebRTC connection
+  liveStreamUrl?: string; // Optional: URL from a service like RTSP.me
   status: 'Available' | 'Pending' | 'Adopted';
   location: string; // e.g., Shelter name or city
   personalityTraits: string[]; // e.g., ['Friendly', 'Playful', 'Calm']
