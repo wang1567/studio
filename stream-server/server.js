@@ -1,66 +1,285 @@
-// --- PAWSCONNECT 即時影像串流伺服器 ---
-// 這是經過多次測試和修正後，最終的、最穩定的版本。
-// 它的唯一目的，就是將您本地攝影機的 RTSP 影像，轉換成瀏覽器可以讀取的 MJPEG 格式。
+// This file is updated based on the provided SQL schema.
+// It reflects the database structure for PawsConnect and the related fostering app.
+// It is recommended to run `npx supabase gen types typescript --project-id <your-project-id> --schema public > src/types/supabase.ts`
+// periodically to keep it in sync with the actual database.
 
-// --- 如何運行此伺服器 ---
-// 1. 在您電腦的檔案總管中，進到這個 `stream-server` 資料夾。
-// 2. 在這個資料夾中開啟一個終端機 (例如 PowerShell 或 CMD)。
-// 3. 執行 `npm install` 指令，這個步驟只需要做一次。
-// 4. 執行 `npm start` 指令來啟動伺服器。
-// 5. **保持這個終端機視窗開啟！** 如果關閉，影像串流就會中斷。
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
-const Stream = require('node-rtsp-stream');
-
-// --- 組態設定 (請務必修改！) ---
-// 重要提示：請將此處的 RTSP URL 換成您攝影機的【真實位址】，包含正確的帳號和密碼。
-const rtspUrl = 'rtsp://wang1567:15671567@192.168.88.103:554/stream1';
-
-// --- 連接埠解釋 ---
-// streamPort: 這是我們真正需要的 MJPEG 影像服務所使用的連接埠。
-// webSocketPort: 這是套件內部管理用的連接埠，我們不會直接使用它，但必須提供。
-const streamPort = 8082;
-const webSocketPort = 8083;
-
-console.log('================================================================');
-console.log(' PawsConnect 即時影像串流伺服器');
-console.log('================================================================');
-console.log(`[設定] 正在嘗試連線至您的本地攝影機...`);
-console.log(`       (URL: ${rtspUrl.replace(/:.*@/, '://****:****@')})`);
-
-const stream = new Stream({
-    name: 'PawsConnect Live Stream',
-    streamUrl: rtspUrl,
-    wsPort: webSocketPort,
-    // 以下是 ffmpeg 的參數，我們明確指定影像品質以確保穩定性。
-    ffmpegOptions: {
-        '-stats': '',      // 在終端機顯示處理狀態
-        '-r': 15,          // 設定一個穩定的幀率 (15 fps)
-        '-q:v': 8          // 設定影像品質 (數字越低品質越好，8 是一個很好的平衡點)
+export interface Database {
+  public: {
+    Tables: {
+      pets: {
+        Row: {
+          id: string // uuid, primary key
+          user_id: string // uuid, FK to auth.users.id
+          name: string // text
+          birth_date: string | null // date
+          weight: number | null // numeric
+          created_at: string // timestamptz
+          photos: string[] | null // ARRAY
+          breed: string | null // text
+          description: string | null // text
+          location: string | null // text
+          personality_traits: string[] | null // ARRAY
+          webrtc_id: string | null // text
+        }
+        Insert: {
+          id?: string // uuid
+          user_id: string // uuid
+          name: string
+          birth_date?: string | null
+          weight?: number | null
+          created_at?: string
+          photos?: string[] | null
+          breed?: string | null
+          description?: string | null
+          location?: string | null
+          personality_traits?: string[] | null
+          webrtc_id?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          birth_date?: string | null
+          weight?: number | null
+          created_at?: string
+          photos?: string[] | null
+          breed?: string | null
+          description?: string | null
+          location?: string | null
+          personality_traits?: string[] | null
+          webrtc_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pets_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      health_records: {
+        Row: {
+          id: string // uuid, primary key
+          pet_id: string // uuid, FK to pets.id
+          temperature: number | null // numeric
+          heart_rate: number | null // integer
+          oxygen_level: number | null // numeric
+          recorded_at: string // timestamptz
+          power: number | null // numeric
+          steps_value: number | null // numeric
+          condition_description: string | null // text
+        }
+        Insert: {
+          id?: string
+          pet_id: string
+          temperature?: number | null
+          heart_rate?: number | null
+          oxygen_level?: number | null
+          recorded_at?: string
+          power?: number | null
+          steps_value?: number | null
+          condition_description?: string | null
+        }
+        Update: {
+          id?: string
+          pet_id?: string
+          temperature?: number | null
+          heart_rate?: number | null
+          oxygen_level?: number | null
+          recorded_at?: string
+          power?: number | null
+          steps_value?: number | null
+          condition_description?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "health_records_pet_id_fkey"
+            columns: ["pet_id"]
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      feeding_records: {
+        Row: {
+          id: string; // uuid
+          pet_id: string; // uuid
+          food_type: string; // text
+          amount: number; // numeric
+          calories: number; // real
+          fed_at: string; // timestamp with time zone
+          weight: number | null; // numeric
+          laser_distance: number | null; // numeric
+          power: number | null; // numeric
+        };
+        Insert: {
+          id?: string;
+          pet_id: string;
+          food_type: string;
+          amount: number;
+          calories: number;
+          fed_at?: string;
+          weight?: number | null;
+          laser_distance?: number | null;
+          power?: number | null;
+        };
+        Update: {
+          id?: string;
+          pet_id?: string;
+          food_type?: string;
+          amount?: number;
+          calories?: number;
+          fed_at?: string;
+          weight?: number | null;
+          laser_distance?: number | null;
+          power?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "feeding_records_pet_id_fkey"
+            columns: ["pet_id"]
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      vaccine_records: {
+        Row: {
+          id: string // uuid
+          pet_id: string // uuid
+          vaccine_name: string // text
+          date: string // date
+          next_due_date: string | null // date
+        }
+        Insert: {
+          id?: string
+          pet_id: string
+          vaccine_name: string
+          date: string
+          next_due_date?: string | null
+        }
+        Update: {
+          id?: string
+          pet_id?: string
+          vaccine_name?: string
+          date?: string
+          next_due_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vaccine_records_pet_id_fkey"
+            columns: ["pet_id"]
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      profiles: {
+        Row: {
+          id: string // uuid, primary key, FK to auth.users.id
+          updated_at: string | null // timestamptz
+          full_name: string | null // text
+          avatar_url: string | null // text
+          role: Database["public"]["Enums"]["user_role_enum"] // type user_role_enum
+        }
+        Insert: {
+          id: string // uuid
+          updated_at?: string | null
+          full_name?: string | null
+          avatar_url?: string | null
+          role: Database["public"]["Enums"]["user_role_enum"]
+        }
+        Update: {
+          id?: string
+          updated_at?: string | null
+          full_name?: string | null
+          avatar_url?: string | null
+          role?: Database["public"]["Enums"]["user_role_enum"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_id_fkey"
+            columns: ["id"]
+            referencedRelation: "users" // Supabase specific table for auth users
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      user_dog_likes: {
+        Row: {
+          user_id: string // uuid, FK to auth.users.id
+          dog_id: string // uuid, FK to pets.id
+          liked_at: string // timestamptz
+        }
+        Insert: {
+          user_id: string
+          dog_id: string
+          liked_at?: string
+        }
+        Update: {
+          user_id?: string
+          dog_id?: string
+          liked_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_dog_likes_dog_id_fkey"
+            columns: ["dog_id"]
+            referencedRelation: "pets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_dog_likes_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
-});
-
-stream.on('exitWithError', () => {
-    console.error('\n[!! 嚴重錯誤 !!] FFmpeg 程序意外終止。');
-    console.error('這通常是因為：');
-    console.error('  1. RTSP URL 不正確 (IP、連接埠錯誤)。');
-    console.error('  2. 帳號或密碼錯誤。');
-    console.error('  3. 與攝影機的網路連線中斷。');
-    console.error('請檢查您的攝影機連線和上面的 rtspUrl 設定，然後重新啟動此伺服器。');
-    stream.stop(); // 確保停止所有相關程序
-});
-
-console.log(`\n[成功] 本地影像伺服器已啟動，正在監聽連接埠 ${streamPort}`);
-console.log(`       您可以在本地瀏覽器打開 http://localhost:${streamPort} 進行測試。`);
-console.log('\n----------------------【接下來的操作步驟】----------------------');
-console.log(' ** 您的本地影像伺服器已在運行中，請不要關閉此視窗！**\n');
-console.log(' (1) 開啟【另一個】新的終端機視窗。');
-console.log(` (2) 在新視窗中，執行 ngrok 指令來建立公開網址:`);
-console.log(`     ngrok http ${streamPort} --host-header="localhost:${streamPort}"`);
-console.log('\n (3) ngrok 將會提供一個 `Forwarding` 開頭的公開網址 (例如: https://abcd-1234.ngrok-free.app)。');
-console.log(' (4) 【最關鍵的一步：手動授權】');
-console.log('     直接在您的【瀏覽器】中打開剛剛複製的 ngrok 公開網址。');
-console.log('     您會看到一個 ngrok 的歡迎頁面，請點擊藍色的 "Visit Site" 按鈕。');
-console.log('     點擊後，您應該就能看到攝影機的即時影像。');
-console.log('\n (5) 確認影像成功顯示後，將這個 ngrok 公開網址 (不包含任何結尾路徑) 更新到您 Supabase 資料庫中對應狗狗的 `live_stream_url` 欄位。');
-console.log(' (6) 重新整理 PawsConnect 應用程式，現在「觀看即時影像」按鈕應該可以正常運作了！');
-console.log('----------------------------------------------------------------\n');
+    Views: {
+      dogs_for_adoption_view: {
+        Row: {
+          id: string; // uuid from pets.id
+          name: string; // text from pets.name
+          breed: string | null; // text from pets.breed
+          age: number | null; // integer, calculated from pets.birth_date
+          gender: Database["public"]["Enums"]["gender_enum"] | null;
+          photos: string[] | null; // ARRAY from pets.photos
+          description: string | null; // text from pets.description
+          location: string | null; // text from pets.location
+          personality_traits: string[] | null; // ARRAY from pets.personality_traits
+          webrtc_id: string | null; // text from pets.webrtc_id
+          status: Database["public"]["Enums"]["dog_status_enum"] | null;
+          // The JSON aggregates need to be defined in the view's SQL definition
+          health_records: Json | null;
+          feeding_schedule: Json | null;
+          vaccination_records: Json | null;
+        }
+      }
+    }
+    Functions: {
+      delete_user_account: {
+        Args: {}
+        Returns: undefined
+      }
+    }
+    Enums: {
+      gender_enum: "Male" | "Female" | "Unknown"
+      dog_status_enum: "Available" | "Pending" | "Adopted"
+      user_role_enum: "adopter" | "caregiver"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
