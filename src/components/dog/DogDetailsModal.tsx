@@ -33,6 +33,9 @@ export const DogDetailsModal = ({ dog, isOpen, onClose }: DogDetailsModalProps) 
   const dogPhotos = dog.photos && dog.photos.length > 0 ? dog.photos : ['https://placehold.co/600x400.png'];
   const hasLiveStream = !!dog.liveStreamUrl;
 
+  // The stream server now provides the direct link
+  const liveStreamUrl = dog.liveStreamUrl;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl w-[95vw] h-[90vh] flex flex-col p-0">
@@ -105,7 +108,7 @@ export const DogDetailsModal = ({ dog, isOpen, onClose }: DogDetailsModalProps) 
         <div className="p-4 border-t bg-secondary/30 flex justify-end items-center gap-3 mt-auto">
             {hasLiveStream && (
                 <Button variant="secondary" asChild>
-                    <a href={dog.liveStreamUrl} target="_blank" rel="noopener noreferrer">
+                    <a href={liveStreamUrl} target="_blank" rel="noopener noreferrer">
                         <Video className="mr-2 h-4 w-4" /> 觀看即時影像 <ExternalLink className="ml-2 h-3 w-3" />
                     </a>
                 </Button>
