@@ -28,14 +28,22 @@ app.get('/live_stream.mjpg', (req, res) => {
     });
 
     // Spawn an FFmpeg process.
-    // These arguments are the most direct and robust for this purpose.
+    // This is the most robust command:
+    // -rtsp_transport tcp: Forces a more reliable connection method.
+    // -i rtspUrl: Specifies the input stream.
+    // -an: Disables audio.
+    // -c:v mjpeg: Forces re-encoding to MJPEG format. This is the KEY FIX.
+    // -q:v 7: Sets a reasonable video quality (lower is better).
+    // -f mjpeg: Specifies the output container format.
+    // pipe:1: Outputs the stream to stdout.
     const ffmpegCommand = [
-        '-rtsp_transport', 'tcp', // Force TCP transport for reliability
+        '-rtsp_transport', 'tcp',
         '-i', rtspUrl,
-        '-an',             // No audio
-        '-c:v', 'copy',    // Directly copy the video stream without re-encoding
-        '-f', 'mjpeg',     // Output format: Motion JPEG
-        'pipe:1'           // Output to stdout
+        '-an',
+        '-c:v', 'mjpeg', // Force re-encoding to MJPEG
+        '-q:v', '7',
+        '-f', 'mjpeg',
+        'pipe:1'
     ];
 
     const ffmpeg = spawn('ffmpeg', ffmpegCommand, { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -79,7 +87,7 @@ const server = http.createServer(app);
 server.listen(port, () => {
     console.log(`[Server] CUSTOM MJPEG Stream server is running on http://localhost:${port}`);
     console.log("\n--- NGROK INSTRUCTIONS ---");
-    console.log(`1. In another terminal, run: ngrok http ${port} --host-header="localhost:${port}"`);
+    console.log("1. In another terminal, run: ngrok http 8082 --host-header=\"localhost:8082\"");
     console.log("2. Copy the 'Forwarding' URL (e.g., https://abcd-1234.ngrok-free.app).");
     console.log("3. *** CRITICAL STEP ***: Open that URL + '/live_stream.mjpg' in your BROWSER to authorize and test.");
     console.log("   Example: https://abcd-1234.ngrok-free.app/live_stream.mjpg");
