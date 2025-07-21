@@ -33,7 +33,8 @@ export const DogDetailsModal = ({ dog, isOpen, onClose }: DogDetailsModalProps) 
   const dogPhotos = dog.photos && dog.photos.length > 0 ? dog.photos : ['https://placehold.co/600x400.png'];
   const hasLiveStream = !!dog.liveStreamUrl;
 
-  // The stream server now provides the direct link
+  // The node-rtsp-stream package serves the MJPEG stream at the root path.
+  // The link will open the ngrok URL directly.
   const liveStreamUrl = dog.liveStreamUrl;
 
   return (
