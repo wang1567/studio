@@ -4,7 +4,7 @@
 import type { Dog, Profile, UserRole, HealthRecord, FeedingSchedule, VaccinationRecord } from '@/types';
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import type { User as SupabaseUser, Session as SupabaseSession, PostgrestError } from '@supabase/supabase-js';
+import type { User as SupabaseUser, Session as SupabaseSession, PostgrestError, AuthApiError } from '@supabase/supabase-js';
 import type { Database } from '@/types/supabase';
 import { useToast } from '@/hooks/use-toast';
 type DbDog = Database['public']['Views']['dogs_for_adoption_view']['Row'];
@@ -146,7 +146,12 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.log("Info: Error getting initial session:", error.message);
+           // This specific error is expected when the user is not logged in.
+           // We can safely ignore it and only log other, unexpected errors.
+           const authError = error as AuthApiError;
+           if (!(authError.message === 'Invalid Refresh Token: Refresh Token Not Found' && authError.status === 400)) {
+               console.error("Error getting initial session:", error);
+           }
         }
         
         const currentUser = initialSession?.user ?? null;
