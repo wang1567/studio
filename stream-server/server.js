@@ -2,6 +2,13 @@
 // 這是經過多次測試和修正後，最終的、最穩定的版本。
 // 它的唯一目的，就是將您本地攝影機的 RTSP 影像，轉換成瀏覽器可以讀取的 MJPEG 格式。
 
+// --- 如何運行此伺服器 ---
+// 1. 在您電腦的檔案總管中，進到這個 `stream-server` 資料夾。
+// 2. 在這個資料夾中開啟一個終端機 (例如 PowerShell 或 CMD)。
+// 3. 執行 `npm install` 指令，這個步驟只需要做一次。
+// 4. 執行 `npm start` 指令來啟動伺服器。
+// 5. **保持這個終端機視窗開啟！** 如果關閉，影像串流就會中斷。
+
 const Stream = require('node-rtsp-stream');
 
 // --- 組態設定 (請務必修改！) ---
@@ -11,10 +18,9 @@ const rtspUrl = 'rtsp://wang1567:15671567@192.168.88.103:554/stream1';
 // --- 連接埠解釋 ---
 // streamPort: 這是我們真正需要的 MJPEG 影像服務所使用的連接埠。
 // webSocketPort: 這是套件內部管理用的連接埠，我們不會直接使用它，但必須提供。
-const streamPort = 8082; 
+const streamPort = 8082;
 const webSocketPort = 8083;
 
-// --- 伺服器啟動 ---
 console.log('================================================================');
 console.log(' PawsConnect 即時影像串流伺服器');
 console.log('================================================================');
@@ -33,7 +39,6 @@ const stream = new Stream({
     }
 });
 
-// 監聽 ffmpeg 因任何原因退出時的事件
 stream.on('exitWithError', () => {
     console.error('\n[!! 嚴重錯誤 !!] FFmpeg 程序意外終止。');
     console.error('這通常是因為：');

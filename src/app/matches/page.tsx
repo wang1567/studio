@@ -28,7 +28,7 @@ export default function MatchesPage() {
         setSelectedDogDetails(null);
     }, 300);
   };
-  
+
   useEffect(() => {
     if (selectedDogDetails) {
       setIsModalOpen(true);

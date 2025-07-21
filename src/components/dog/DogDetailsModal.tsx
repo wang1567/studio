@@ -33,8 +33,7 @@ export const DogDetailsModal = ({ dog, isOpen, onClose }: DogDetailsModalProps) 
   const dogPhotos = dog.photos && dog.photos.length > 0 ? dog.photos : ['https://placehold.co/600x400.png'];
   const hasLiveStream = !!dog.liveStreamUrl;
 
-  // The node-rtsp-stream package serves the MJPEG stream at the root path.
-  // The link will open the ngrok URL directly.
+  // The node-rtsp-stream package serves the MJPEG stream at the root path of the ngrok URL.
   const liveStreamUrl = dog.liveStreamUrl;
 
   return (
@@ -64,13 +63,13 @@ export const DogDetailsModal = ({ dog, isOpen, onClose }: DogDetailsModalProps) 
                         {dogPhotos.map((photo, index) => (
                             <CarouselItem key={index}>
                             <div className="aspect-w-4 aspect-h-3">
-                                <Image 
-                                src={photo || 'https://placehold.co/600x400.png'} 
-                                alt={`${dog.name} 照片 ${index + 1}`} 
+                                <Image
+                                src={photo || 'https://placehold.co/600x400.png'}
+                                alt={`${dog.name} 照片 ${index + 1}`}
                                 width={600}
                                 height={400}
                                 className="object-cover w-full h-full"
-                                data-ai-hint="dog" 
+                                data-ai-hint="dog"
                                 />
                             </div>
                             </CarouselItem>
@@ -83,7 +82,7 @@ export const DogDetailsModal = ({ dog, isOpen, onClose }: DogDetailsModalProps) 
                         </>
                         )}
                     </Carousel>
-                    
+
                     <div className="space-y-2">
                         <p className="text-foreground/80">{dog.description}</p>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
