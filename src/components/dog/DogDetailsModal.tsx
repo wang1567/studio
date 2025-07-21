@@ -32,7 +32,7 @@ export const DogDetailsModal = ({ dog, isOpen, onClose }: DogDetailsModalProps) 
 
   const dogPhotos = dog.photos && dog.photos.length > 0 ? dog.photos : ['https://placehold.co/600x400.png'];
   const hasLiveStream = !!dog.liveStreamUrl;
-  const liveStreamFullUrl = hasLiveStream ? `${dog.liveStreamUrl}/live_stream.mjpg` : '#';
+  const liveStreamFullUrl = hasLiveStream ? `${dog.liveStreamUrl}` : '#';
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

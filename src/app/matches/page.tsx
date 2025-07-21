@@ -75,7 +75,7 @@ export default function MatchesPage() {
               </Button>
                {dog.liveStreamUrl && (
                 <Button variant="secondary" asChild className="w-full">
-                   <a href={`${dog.liveStreamUrl}/live_stream.mjpg`} target="_blank" rel="noopener noreferrer">
+                   <a href={`${dog.liveStreamUrl}`} target="_blank" rel="noopener noreferrer">
                       <Video className="mr-2 h-4 w-4" /> 即時影像 <ExternalLink className="ml-1 h-3 w-3"/>
                    </a>
                 </Button>

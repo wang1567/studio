@@ -1,100 +1,51 @@
+// This file is now located at /pawsconnect/src/stream-server.js
 
-const express = require('express');
-const cors = require('cors');
-const http = require('http');
-const { spawn } = require('child_process');
+// Import the necessary package.
+const Stream = require('node-rtsp-stream');
 
-const app = express();
-const port = 8082; // This server runs on your LOCAL machine.
-
-// --- LOCAL Configuration ---
-// This URL points to your LOCAL camera's RTSP stream.
+// --- Configuration ---
 const rtspUrl = 'rtsp://wang1567:15671567@192.168.88.103:554/stream1';
+const streamPort = 8082; // The port for the new server.
+const webSocketPort = 8083; // The WebSocket port required by the package.
+
+// Create the stream instance.
+const stream = new Stream({
+  name: 'PawsConnect Stream',
+  streamUrl: rtspUrl,
+  wsPort: webSocketPort,
+  // These are the ffmpeg options. We are explicitly setting the quality.
+  ffmpegOptions: { 
+    '-stats': '',
+    '-r': 30, // 30 frames per second
+    '-q:v': 7 // Video quality (lower is better, 7 is a good balance)
+  }
+});
+
+console.log(`[Server] MJPEG Stream server is starting on port ${streamPort}`);
 console.log(`[Config] Attempting to connect to LOCAL RTSP URL: ${rtspUrl.replace(/:.*@/, '://****:****@')}`);
+console.log(`[Info] WebSocket server for the stream is on port ${webSocketPort}`);
 
-app.use(cors());
+// The stream object itself handles the HTTP server creation.
+// When a client connects to http://localhost:8082/
+// it will receive the MJPEG stream.
 
-// This is the single endpoint that serves the MJPEG stream.
-app.get('/live_stream.mjpg', (req, res) => {
-    console.log('[Request] Received new stream request.');
-
-    // Set the proper headers for an MJPEG stream.
-    res.writeHead(200, {
-        'Content-Type': 'multipart/x-mixed-replace; boundary=--ffmpeg-boundary',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'Pragma': 'no-cache', // Important for preventing caching
-        'Expires': '0', // Important for preventing caching
-    });
-
-    // Spawn an FFmpeg process.
-    // This is the most robust command:
-    // -rtsp_transport tcp: Forces a more reliable connection method.
-    // -i rtspUrl: Specifies the input stream.
-    // -an: Disables audio.
-    // -c:v mjpeg: Forces re-encoding to MJPEG format. This is the KEY FIX.
-    // -q:v 7: Sets a reasonable video quality (lower is better).
-    // -f mjpeg: Specifies the output container format.
-    // pipe:1: Outputs the stream to stdout.
-    const ffmpegCommand = [
-        '-rtsp_transport', 'tcp',
-        '-i', rtspUrl,
-        '-an',
-        '-c:v', 'mjpeg', // Force re-encoding to MJPEG
-        '-q:v', '7',
-        '-f', 'mjpeg',
-        'pipe:1'
-    ];
-
-    const ffmpeg = spawn('ffmpeg', ffmpegCommand, { stdio: ['ignore', 'pipe', 'pipe'] });
-    console.log('[FFmpeg] Spawning FFmpeg process...');
-
-    // Pipe the FFmpeg's output (the video data) to the client's response.
-    ffmpeg.stdout.on('data', (data) => {
-        // This check is important. We only write if the connection is still open.
-        if (!res.writableEnded) {
-            res.write('--ffmpeg-boundary\r\n');
-            res.write('Content-Type: image/jpeg\r\n');
-            res.write(`Content-Length: ${data.length}\r\n`);
-            res.write('\r\n');
-            res.write(data, 'binary');
-            res.write('\r\n');
-        }
-    });
-
-    // Log any errors from FFmpeg to the console for debugging.
-    ffmpeg.stderr.on('data', (data) => {
-        console.error(`[FFmpeg STDERR]: ${data.toString()}`);
-    });
-
-    // When the FFmpeg process closes, end the response.
-    ffmpeg.on('close', (code) => {
-        console.log(`[FFmpeg] Process exited with code ${code}`);
-        if (!res.writableEnded) {
-            res.end();
-        }
-    });
-
-    // If the client disconnects, make sure to kill the FFmpeg process.
-    req.on('close', () => {
-        console.log('[Request] Client disconnected, killing FFmpeg process.');
-        ffmpeg.kill();
-    });
+stream.on('camdata', (data) => {
+  // This event is fired when video data is received from the camera.
+  // We can leave this empty for now. The package handles the piping.
 });
 
-const server = http.createServer(app);
-
-server.listen(port, () => {
-    console.log(`[Server] CUSTOM MJPEG Stream server is running on http://localhost:${port}`);
-    console.log("\n--- NGROK INSTRUCTIONS ---");
-    console.log("1. In another terminal, run: ngrok http 8082 --host-header=\"localhost:8082\"");
-    console.log("2. Copy the 'Forwarding' URL (e.g., https://abcd-1234.ngrok-free.app).");
-    console.log("3. *** CRITICAL STEP ***: Open that URL + '/live_stream.mjpg' in your BROWSER to authorize and test.");
-    console.log("   Example: https://abcd-1234.ngrok-free.app/live_stream.mjpg");
-    console.log("4. After testing, copy the base URL (without the path) and paste it into the Supabase 'live_stream_url' field.");
-    console.log("5. Refresh the PawsConnect app. The stream should now work.\n");
+stream.on('exitWithError', () => {
+    console.error('[FFmpeg Error] FFmpeg process exited with an error. This is often due to an incorrect RTSP URL, wrong credentials, or a network issue with the camera.');
+    // Stop the stream to prevent further errors.
+    stream.stop(); 
 });
 
-server.on('error', (err) => {
-    console.error('[Server Error]', err);
-});
+
+console.log("\n--- NGROK & USAGE INSTRUCTIONS ---");
+console.log("1. This script now creates its own MJPEG server. You do NOT need a separate server file.");
+console.log(`2. In another terminal, run: ngrok http ${streamPort} --host-header="localhost:${streamPort}"`);
+console.log("3. Copy the 'Forwarding' URL from ngrok (e.g., https://abcd-1234.ngrok-free.app).");
+console.log("4. *** CRITICAL STEP ***: The stream is now at the ROOT path. Open that URL directly in your BROWSER to authorize and test.");
+console.log("   Example: https://abcd-1234.ngrok-free.app (NO /live_stream.mjpg at the end)");
+console.log("5. After testing, you MUST update the frontend code to reflect this new URL structure.");
+console.log("6. For now, let's just get the stream working in the browser first.\n");
