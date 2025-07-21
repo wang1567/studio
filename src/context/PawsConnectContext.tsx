@@ -51,10 +51,6 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
     c => c && c.trim() && c.trim().toLowerCase() !== 'none' && c.trim() !== '無'
   ) || [];
   
-  // Use a placeholder for the liveStreamUrl that will be replaced by the client logic.
-  // The actual URL is dynamic based on the ngrok tunnel.
-  const hasStreamData = !!dbViewDog.live_stream_url && dbViewDog.live_stream_url.startsWith('https://');
-
   return {
     id: dbViewDog.id,
     name: dbViewDog.name || '未命名狗狗',
@@ -79,7 +75,7 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
       dateAdministered: vr.dateAdministered || '',
       nextDueDate: vr.nextDueDate || undefined,
     })),
-    liveStreamUrl: hasStreamData ? dbViewDog.live_stream_url : undefined,
+    liveStreamUrl: dbViewDog.live_stream_url || undefined,
     status: dbViewDog.status === 'Available' || dbViewDog.status === 'Pending' || dbViewDog.status === 'Adopted' ? dbViewDog.status : 'Available',
     location: dbViewDog.location || '未知地點',
     personalityTraits: personalityTraits.length > 0 ? personalityTraits : ['個性溫和'],
