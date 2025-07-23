@@ -419,20 +419,21 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     }
     setIsUpdatingProfile(true);
     try {
-      const profileUpdateData: Partial<DbProfile> = {
+      const profileUpsertData: Partial<DbProfile> & { id: string } = {
+        id: user.id,
         updated_at: new Date().toISOString(),
+        role: profile?.role || 'adopter', // Provide a default role if needed
       };
       if (updates.fullName !== undefined) {
-        profileUpdateData.full_name = updates.fullName;
+        profileUpsertData.full_name = updates.fullName;
       }
       if (updates.avatarUrl !== undefined) {
-        profileUpdateData.avatar_url = updates.avatarUrl;
+        profileUpsertData.avatar_url = updates.avatarUrl;
       }
 
       const { data, error } = await supabase
         .from('profiles')
-        .update(profileUpdateData)
-        .eq('id', user.id)
+        .upsert(profileUpsertData)
         .select()
         .single<DbProfile>();
 
@@ -529,4 +530,5 @@ export const usePawsConnect = () => {
   return context;
 };
 
+    
     
