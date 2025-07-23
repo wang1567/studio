@@ -386,12 +386,24 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       setIsLoadingAuth(false);
       return { user: null, error: '註冊成功，但未取得使用者資訊。' };
     }
+
+    const getAvatarText = () => {
+        if (fullName) {
+            const name = fullName.trim();
+            // Check for CJK characters
+            const cjkRegex = /[\u4e00-\u9fa5]/;
+            if (cjkRegex.test(name)) {
+                return name.length > 2 ? name.substring(name.length - 2) : name;
+            }
+        }
+        return email.split('@')[0];
+    };
     
     const { error: profileError } = await supabase.from('profiles').insert({
       id: authData.user.id,
       role,
       full_name: fullName || email.split('@')[0],
-      avatar_url: `https://placehold.co/100x100.png?text=${(fullName || email)[0].toUpperCase()}`,
+      avatar_url: `https://placehold.co/100x100.png?text=${encodeURIComponent(getAvatarText())}`,
       updated_at: new Date().toISOString(),
     });
 
@@ -531,4 +543,6 @@ export const usePawsConnect = () => {
 };
 
     
+    
+
     
