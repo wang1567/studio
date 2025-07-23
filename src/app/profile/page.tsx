@@ -116,7 +116,7 @@ export default function ProfilePage() {
     } else {
       toast({
         title: '更新失敗',
-        description: result.error || '更新個人資料時發生錯誤。',
+        description: result.error || '更新個人資料時發生錯誤。請檢查您的權限或稍後再試。',
         variant: 'destructive',
       });
     }
@@ -241,3 +241,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    

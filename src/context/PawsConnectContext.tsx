@@ -450,9 +450,11 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         return { success: true, updatedProfile: newProfile };
       }
       return { success: false, error: "更新個人資料失敗，未收到回傳資料。" };
-    } catch (error: any) {
-      console.error("更新個人資料時發生錯誤:", error);
-      return { success: false, error: error.message || "更新個人資料時發生未預期的錯誤。" };
+    } catch (e: unknown) {
+      const error = e as PostgrestError;
+      console.error("更新個人資料時發生錯誤:", JSON.stringify(error, null, 2));
+      const errorMessage = error.message || "更新個人資料時發生未預期的錯誤。";
+      return { success: false, error: errorMessage };
     } finally {
       setIsUpdatingProfile(false);
     }
@@ -526,3 +528,5 @@ export const usePawsConnect = () => {
   }
   return context;
 };
+
+    
