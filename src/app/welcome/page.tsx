@@ -1,24 +1,47 @@
-
 "use client";
 
 import { AuthForm } from '@/components/auth/AuthForm';
 import { PawPrint, Heart, Search } from 'lucide-react';
 import Image from 'next/image';
 import { usePawsConnect } from '@/context/PawsConnectContext';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 export default function WelcomePage() {
     const { user, isLoadingAuth } = usePawsConnect();
     const router = useRouter();
+    const searchParams = useSearchParams();
+
+    // CSR 後再計算 shouldReset，避免 SSR/CSR 不一致
+    const [shouldReset, setShouldReset] = useState(false);
+    const queryCode = searchParams?.get('code');
+    const [code, setCode] = useState<string | null>(queryCode || null);
+    useEffect(() => {
+        const hash = typeof window !== 'undefined' ? window.location.hash : '';
+        const hashCodeMatch = hash?.match(/(?:[#&?]|^)code=([^&]+)/);
+        const codeFromHash = hashCodeMatch ? decodeURIComponent(hashCodeMatch[1]) : null;
+        const typeParam = searchParams?.get('type');
+        const isRecoveryHash = /(?:^|[&#])type=recovery(?:&|$)/.test(hash) || /access_token=/.test(hash);
+        const nextCode = queryCode || codeFromHash;
+        setCode(nextCode || null);
+        setShouldReset(!!nextCode || typeParam === 'recovery' || isRecoveryHash);
+    }, [searchParams, queryCode]);
+
+    // 攔截 query 或 URL hash 上的重設線索（code 或 type=recovery/access_token），導向 /reset-password
+    useEffect(() => {
+        if (shouldReset) {
+            const next = code ? `/reset-password?code=${encodeURIComponent(code)}` : '/reset-password';
+            router.replace(next);
+        }
+    }, [shouldReset, code, router]);
 
     useEffect(() => {
-        if (!isLoadingAuth && user) {
+        if (!isLoadingAuth && user && !shouldReset) {
             router.replace('/');
         }
-    }, [user, isLoadingAuth, router]);
+    }, [user, isLoadingAuth, router, shouldReset]);
 
-    if (isLoadingAuth || user) {
+    if (isLoadingAuth || user || shouldReset) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
           <PawPrint className="w-12 h-12 text-primary animate-spin" />
@@ -29,6 +52,19 @@ export default function WelcomePage() {
 
     return (
         <div className="w-full space-y-12">
+            {/* 左下角固定圖片裝飾 */}
+            <div className="fixed bottom-4 left-4 z-10 select-none pointer-events-none">
+              <Image
+                src="https://placehold.co/120x120.png?text=Paw"
+                alt="decorative paw"
+                width={120}
+                height={120}
+                className="opacity-80 rounded-lg shadow-lg"
+                priority
+                data-ai-hint="dog paw"
+              />
+            </div>
+
             <section className="text-center pt-8 md:pt-16">
                 <div className="max-w-3xl mx-auto">
                     <div className="flex justify-center items-center gap-4 mb-4">
