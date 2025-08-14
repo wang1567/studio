@@ -183,22 +183,28 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         const currentUser = newSession?.user ?? null;
         const previousUserId = user?.id;
 
-        if (currentUser?.id !== previousUserId) {
+        // 只有在用戶真正改變時才設置載入狀態
+        const userChanged = currentUser?.id !== previousUserId;
+        
+        if (userChanged) {
           setIsLoadingAuth(true);
         }
         
         setSession(newSession);
         setUser(currentUser);
         
-        if (currentUser) {
-            await fetchProfileAndSet(currentUser);
-        } else {
-            setProfile(null);
-            resetDogState();
-        }
-
-        if (currentUser?.id !== previousUserId) {
-           setIsLoadingAuth(false);
+        try {
+          if (currentUser) {
+              await fetchProfileAndSet(currentUser);
+          } else {
+              setProfile(null);
+              resetDogState();
+          }
+        } catch (error) {
+          console.error('Error handling auth state change:', error);
+        } finally {
+          // 確保載入狀態總是被重置
+          setIsLoadingAuth(false);
         }
       }
     );

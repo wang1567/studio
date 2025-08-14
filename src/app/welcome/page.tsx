@@ -12,36 +12,38 @@ export default function WelcomePage() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    // CSR 後再計算 shouldReset，避免 SSR/CSR 不一致
+    // 簡化重設檢查邏輯
     const [shouldReset, setShouldReset] = useState(false);
-    const queryCode = searchParams?.get('code');
-    const [code, setCode] = useState<string | null>(queryCode || null);
+    const [hasCheckedReset, setHasCheckedReset] = useState(false);
+
     useEffect(() => {
-        const hash = typeof window !== 'undefined' ? window.location.hash : '';
-        const hashCodeMatch = hash?.match(/(?:[#&?]|^)code=([^&]+)/);
-        const codeFromHash = hashCodeMatch ? decodeURIComponent(hashCodeMatch[1]) : null;
+        if (hasCheckedReset) return; // 避免重複檢查
+        
+        const queryCode = searchParams?.get('code');
         const typeParam = searchParams?.get('type');
-        const isRecoveryHash = /(?:^|[&#])type=recovery(?:&|$)/.test(hash) || /access_token=/.test(hash);
-        const nextCode = queryCode || codeFromHash;
-        setCode(nextCode || null);
-        setShouldReset(!!nextCode || typeParam === 'recovery' || isRecoveryHash);
-    }, [searchParams, queryCode]);
-
-    // 攔截 query 或 URL hash 上的重設線索（code 或 type=recovery/access_token），導向 /reset-password
-    useEffect(() => {
-        if (shouldReset) {
-            const next = code ? `/reset-password?code=${encodeURIComponent(code)}` : '/reset-password';
+        const hash = typeof window !== 'undefined' ? window.location.hash : '';
+        const isRecoveryHash = /type=recovery|access_token=/.test(hash);
+        
+        const needsReset = !!queryCode || typeParam === 'recovery' || isRecoveryHash;
+        
+        if (needsReset) {
+            setShouldReset(true);
+            const next = queryCode ? `/reset-password?code=${encodeURIComponent(queryCode)}` : '/reset-password';
             router.replace(next);
+        } else {
+            setHasCheckedReset(true);
         }
-    }, [shouldReset, code, router]);
+    }, [searchParams, router, hasCheckedReset]);
 
+    // 處理已登入用戶的重導向
     useEffect(() => {
-        if (!isLoadingAuth && user && !shouldReset) {
+        if (!isLoadingAuth && user && hasCheckedReset && !shouldReset) {
             router.replace('/');
         }
-    }, [user, isLoadingAuth, router, shouldReset]);
+    }, [user, isLoadingAuth, router, shouldReset, hasCheckedReset]);
 
-    if (isLoadingAuth || user || shouldReset) {
+    // 只在真正載入時顯示載入畫面
+    if (isLoadingAuth || shouldReset || !hasCheckedReset) {
       return (
         <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
           <PawPrint className="w-12 h-12 text-primary animate-spin" />
@@ -50,20 +52,18 @@ export default function WelcomePage() {
       );
     }
 
+    // 如果已登入但還沒被重導向，顯示載入畫面
+    if (user) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
+                <PawPrint className="w-12 h-12 text-primary animate-spin" />
+                <p className="mt-4 text-lg text-muted-foreground">正在載入中...</p>
+            </div>
+        );
+    }
+
     return (
         <div className="w-full space-y-12">
-            {/* 左下角固定圖片裝飾 */}
-            <div className="fixed bottom-4 left-4 z-10 select-none pointer-events-none">
-              <Image
-                src="https://placehold.co/120x120.png?text=Paw"
-                alt="decorative paw"
-                width={120}
-                height={120}
-                className="opacity-80 rounded-lg shadow-lg"
-                priority
-                data-ai-hint="dog paw"
-              />
-            </div>
 
             <section className="text-center pt-8 md:pt-16">
                 <div className="max-w-3xl mx-auto">
@@ -115,7 +115,13 @@ export default function WelcomePage() {
                         </div>
                     </div>
                     <div className="relative aspect-video rounded-lg overflow-hidden shadow-xl">
-                        <Image src="https://placehold.co/600x400.png" alt="Happy dog with owner" layout="fill" objectFit="cover" data-ai-hint="dog person" />
+                        <Image 
+                            src="https://doghealth.east.org.tw/wp-content/uploads/2022/01/750X1125-3.jpg" 
+                            alt="Happy dog with owner" 
+                            fill
+                            className="object-cover object-center"
+                            data-ai-hint="dog person" 
+                        />
                     </div>
                 </div>
 
