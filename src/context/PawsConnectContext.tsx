@@ -18,6 +18,8 @@ interface PawsConnectContextType {
   passDog: (dogId:string) => void;
   getDogById: (dogId: string) => Dog | undefined;
   isLoadingDogs: boolean;
+  loadDogsWhenNeeded: () => Promise<void>;
+  getLikedDogsCount: () => Promise<number>;
 
   user: SupabaseUser | null;
   profile: Profile | null;
@@ -30,6 +32,7 @@ interface PawsConnectContextType {
   updateProfile: (updates: { fullName?: string | null; avatarUrl?: string | null }) => Promise<{ success: boolean; error?: string | null; updatedProfile?: Profile | null }>;
   deleteAccount: () => Promise<{ error: string | null }>;
   sendPasswordResetEmail: (email: string) => Promise<{ error: string | null }>;
+  resendVerificationEmail: (email: string) => Promise<{ error: string | null }>;
   updateUserEmail: (newEmail: string) => Promise<{ error: string | null }>;
 }
 
@@ -92,7 +95,9 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   const [dogsToSwipe, setDogsToSwipe] = useState<Dog[]>([]);
   const [likedDogs, setLikedDogs] = useState<Dog[]>([]);
   const [seenDogIds, setSeenDogIds] = useState<Set<string>>(new Set());
-  const [isLoadingDogs, setIsLoadingDogs] = useState(true);
+  const [isLoadingDogs, setIsLoadingDogs] = useState(false);
+  const [dogsLoaded, setDogsLoaded] = useState(false);
+  const [likedDogsCountCache, setLikedDogsCountCache] = useState<number | null>(null);
 
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [session, setSession] = useState<SupabaseSession | null>(null);
@@ -102,20 +107,116 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   const [isLiking, setIsLiking] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
+  // Load dogs data when needed (for swipe interface)
+  const loadDogsWhenNeeded = useCallback(async () => {
+    if (dogsLoaded || isLoadingDogs || !user) return;
+    
+    setIsLoadingDogs(true);
+    try {
+      await loadInitialDogData(user.id);
+      setDogsLoaded(true);
+    } catch (error) {
+      console.error('Error loading dogs when needed:', error);
+    } finally {
+      setIsLoadingDogs(false);
+    }
+  }, [dogsLoaded, isLoadingDogs, user?.id]); // 只依賴 user.id 而不是整個 user 物件
+
   const resetDogState = useCallback(() => {
     setMasterDogList([]);
     setDogsToSwipe([]);
     setLikedDogs([]);
+    setDogsLoaded(false);
     setSeenDogIds(new Set());
     setIsLoadingDogs(true);
+    setLikedDogsCountCache(null);
   }, []);
+
+  // Get liked dogs count without loading full dog data
+  const getLikedDogsCount = useCallback(async (): Promise<number> => {
+    console.log('🔍 [getLikedDogsCount] 開始獲取喜歡的狗狗數量');
+    
+    if (!user) {
+      console.log('❌ [getLikedDogsCount] 用戶未登入，返回 0');
+      return 0;
+    }
+    
+    console.log(`👤 [getLikedDogsCount] 用戶ID: ${user.id}`);
+    
+    // If dogs are already loaded, use cached data
+    if (dogsLoaded && likedDogs.length > 0) {
+      console.log(`✅ [getLikedDogsCount] 使用已載入的狗狗資料，數量: ${likedDogs.length}`);
+      return likedDogs.length;
+    }
+    
+    // Use cached count if available
+    if (likedDogsCountCache !== null) {
+      console.log(`💾 [getLikedDogsCount] 使用快取資料，數量: ${likedDogsCountCache}`);
+      return likedDogsCountCache;
+    }
+    
+    console.log('🌐 [getLikedDogsCount] 開始從資料庫獲取數量');
+    
+    try {
+      const { count, error } = await supabase
+        .from('user_dog_interactions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('liked', true);
+      
+      if (error) {
+        console.error('❌ [getLikedDogsCount] 資料庫查詢錯誤:', error);
+        return 0;
+      }
+      
+      const result = count || 0;
+      console.log(`✅ [getLikedDogsCount] 成功獲取數量: ${result}`);
+      setLikedDogsCountCache(result);
+      console.log(`💾 [getLikedDogsCount] 已快取數量: ${result}`);
+      return result;
+    } catch (error) {
+      console.error('💥 [getLikedDogsCount] 未預期錯誤:', error);
+      return 0;
+    }
+  }, [user?.id, dogsLoaded, likedDogsCountCache]); // 只依賴真正會影響結果的變數
 
 
   const fetchProfileAndSet = async (user: SupabaseUser | null) => {
+    console.log('🔍 [fetchProfileAndSet] 開始獲取個人資料');
+    
     if (!user) {
+      console.log('❌ [fetchProfileAndSet] 用戶為空，設定 profile 為 null');
       setProfile(null);
       return;
     }
+
+    console.log(`👤 [fetchProfileAndSet] 用戶ID: ${user.id}, Email: ${user.email}`);
+
+    // 先檢查快取
+    const cachedProfile = localStorage.getItem('pawsconnect_profile');
+    if (cachedProfile) {
+      try {
+        const profileData = JSON.parse(cachedProfile);
+        if (profileData.id === user.id) {
+          console.log('💾 [fetchProfileAndSet] 使用快取的 profile 資料:', profileData);
+          setProfile(profileData);
+          // 在背景更新 profile，但不阻塞 UI
+          console.log('🔄 [fetchProfileAndSet] 在背景更新 profile 資料');
+          fetchAndUpdateProfile(user);
+          return;
+        }
+      } catch (e) {
+        console.log('快取 profile 資料無效');
+      }
+    }
+
+    // 如果沒有快取，則進行完整載入
+    await fetchAndUpdateProfile(user);
+  };
+
+  const fetchAndUpdateProfile = async (user: SupabaseUser) => {
+    console.log('🌐 [fetchAndUpdateProfile] 開始從資料庫獲取最新 profile');
+    
     try {
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
@@ -124,9 +225,11 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         .single<DbProfile>();
 
       if (profileError && profileError.code !== 'PGRST116') {
-        console.error('讀取個人資料時發生錯誤:', profileError);
+        console.error('❌ [fetchAndUpdateProfile] 讀取個人資料時發生錯誤:', profileError);
         setProfile(null);
       } else if (profileData) {
+        console.log('✅ [fetchAndUpdateProfile] 成功獲取 profile 資料:', profileData);
+        
         const newProfile = {
           id: profileData.id,
           role: profileData.role as UserRole,
@@ -135,24 +238,134 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
           updatedAt: profileData.updated_at,
         };
         
+        console.log('📝 [fetchAndUpdateProfile] 處理後的 profile:', newProfile);
         setProfile(newProfile);
-        // 緩存 profile 資料
+        
+        // 更新快取
         localStorage.setItem('pawsconnect_profile', JSON.stringify(newProfile));
+        console.log('💾 [fetchAndUpdateProfile] 已更新 localStorage 快取');
       } else {
-        setProfile(null);
+        console.log('⚠️ [fetchAndUpdateProfile] 未找到 profile 資料，嘗試創建新的 profile');
+        
+        // 創建新的 profile 記錄
+        try {
+          console.log('🔨 [fetchAndUpdateProfile] 準備創建 profile，用戶資料:', {
+            id: user.id,
+            email: user.email,
+            user_metadata: user.user_metadata
+          });
+          
+          const profileData = {
+            id: user.id,
+            role: 'adopter' as const, // 使用正確的 enum 值
+            full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || null,
+            avatar_url: user.user_metadata?.avatar_url || null,
+          };
+          
+          console.log('📝 [fetchAndUpdateProfile] 即將插入的資料:', profileData);
+          
+          const { data: newProfileData, error: createError } = await supabase
+            .from('profiles')
+            .insert(profileData)
+            .select()
+            .single<DbProfile>();
+
+          if (createError) {
+            console.error('❌ [fetchAndUpdateProfile] 創建 profile 失敗:', {
+              error: createError,
+              code: createError.code,
+              message: createError.message,
+              details: createError.details,
+              hint: createError.hint
+            });
+            
+            // 如果是唯一性約束錯誤，嘗試更新現有記錄
+            if (createError.code === '23505') {
+              console.log('🔄 [fetchAndUpdateProfile] profile 已存在，嘗試更新');
+              const { data: updateData, error: updateError } = await supabase
+                .from('profiles')
+                .update({
+                  full_name: profileData.full_name,
+                  avatar_url: profileData.avatar_url,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', user.id)
+                .select()
+                .single<DbProfile>();
+                
+              if (updateError) {
+                console.error('❌ [fetchAndUpdateProfile] 更新 profile 也失敗:', updateError);
+                setProfile(null);
+                return;
+              } else if (updateData) {
+                console.log('✅ [fetchAndUpdateProfile] 成功更新現有 profile:', updateData);
+                const updatedProfile = {
+                  id: updateData.id,
+                  role: updateData.role as UserRole,
+                  fullName: updateData.full_name,
+                  avatarUrl: updateData.avatar_url,
+                  updatedAt: updateData.updated_at,
+                };
+                setProfile(updatedProfile);
+                localStorage.setItem('pawsconnect_profile', JSON.stringify(updatedProfile));
+                return;
+              }
+            }
+            
+            setProfile(null);
+          } else if (newProfileData) {
+            console.log('✅ [fetchAndUpdateProfile] 成功創建新的 profile:', newProfileData);
+            
+            const newProfile = {
+              id: newProfileData.id,
+              role: newProfileData.role as UserRole,
+              fullName: newProfileData.full_name,
+              avatarUrl: newProfileData.avatar_url,
+              updatedAt: newProfileData.updated_at,
+            };
+            
+            setProfile(newProfile);
+            localStorage.setItem('pawsconnect_profile', JSON.stringify(newProfile));
+            console.log('💾 [fetchAndUpdateProfile] 新 profile 已快取');
+          }
+        } catch (createErr) {
+          console.error('💥 [fetchAndUpdateProfile] 創建 profile 時發生錯誤:', createErr);
+          
+          // 如果創建失敗，設置一個臨時的 profile
+          console.log('🆘 [fetchAndUpdateProfile] 創建臨時 profile 以避免載入卡住');
+          const tempProfile = {
+            id: user.id,
+            role: 'adopter' as UserRole,
+            fullName: user.user_metadata?.full_name || user.email?.split('@')[0] || '新用戶',
+            avatarUrl: user.user_metadata?.avatar_url || null,
+            updatedAt: new Date().toISOString(),
+          };
+          
+          setProfile(tempProfile);
+          // 不快取臨時 profile，以便下次重新嘗試創建
+          console.log('⚠️ [fetchAndUpdateProfile] 使用臨時 profile，下次登入將重新嘗試創建');
+        }
       }
     } catch (e) {
-      console.error("處理個人資料時發生未預期的錯誤:", e);
+      console.error("💥 [fetchAndUpdateProfile] 處理個人資料時發生未預期的錯誤:", e);
       setProfile(null);
     }
   };
 
   useEffect(() => {
     const initializeSession = async () => {
-      // 先檢查本地存儲的緩存
+      console.log('🚀 [initializeSession] 開始初始化 session');
+      
+      // 立即設置載入狀態為 false，使用快取資料
       const cachedUser = localStorage.getItem('pawsconnect_user');
       const cachedProfile = localStorage.getItem('pawsconnect_profile');
       const cachedSession = localStorage.getItem('pawsconnect_session');
+      
+      console.log('💾 [initializeSession] 檢查快取資料:', {
+        hasUser: !!cachedUser,
+        hasProfile: !!cachedProfile, 
+        hasSession: !!cachedSession
+      });
       
       if (cachedUser && cachedProfile && cachedSession) {
         try {
@@ -160,22 +373,31 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
           const profileData = JSON.parse(cachedProfile);
           const sessionData = JSON.parse(cachedSession);
           
+          console.log('📦 [initializeSession] 解析快取資料成功:', {
+            userId: userData.id,
+            userEmail: userData.email,
+            profileId: profileData.id,
+            sessionExpiresAt: sessionData.expires_at
+          });
+          
+          // 立即設置快取資料，不等待驗證
+          setUser(userData);
+          setProfile(profileData);
+          setSession(sessionData);
+          setIsLoadingAuth(false);
+          
           // 檢查 session 是否過期
           const expiresAt = new Date(sessionData.expires_at || sessionData.expires_in);
           const now = new Date();
           
           if (expiresAt > now) {
-            // Session 未過期，立即設置狀態，避免載入畫面
-            setUser(userData);
-            setProfile(profileData);
-            setSession(sessionData);
-            setIsLoadingAuth(false);
-            
-            // 在背景驗證並更新 session
+            // Session 未過期，在背景驗證並更新
             supabase.auth.getSession().then(({ data: { session } }) => {
               if (session && session.user.id === userData.id) {
                 setSession(session);
                 localStorage.setItem('pawsconnect_session', JSON.stringify(session));
+                // 背景更新 profile
+                fetchAndUpdateProfile(session.user);
               }
             });
             
@@ -356,15 +578,8 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 }, [toast]);
 
 
-  useEffect(() => {
-    if (!isLoadingAuth && user) {
-      loadInitialDogData(user.id);
-    } else if (!isLoadingAuth && !user) {
-      setIsLoadingDogs(false); 
-      resetDogState();
-    }
-  }, [isLoadingAuth, user, loadInitialDogData, resetDogState]);
-
+  // Remove automatic dog loading when user logs in
+  // Dogs will be loaded on-demand when needed for swipe interface
 
   useEffect(() => {
     if (!isLoadingDogs) {
@@ -529,7 +744,10 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
       setLikedDogs(prevLikedDogs => {
         if (!prevLikedDogs.some(d => d.id === dog.id)) {
-          return [...prevLikedDogs, dog];
+          const newLikedDogs = [...prevLikedDogs, dog];
+          // Update cache when successfully liking a dog
+          setLikedDogsCountCache(newLikedDogs.length);
+          return newLikedDogs;
         }
         return prevLikedDogs;
       });
@@ -566,25 +784,60 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       setIsLoadingAuth(false);
       return { session: null, error: error.message || '登入失敗。請檢查您的帳號密碼。' };
     }
+
+    // 檢查電子郵件是否已驗證
+    if (data.user && !data.user.email_confirmed_at) {
+      setIsLoadingAuth(false);
+      return { 
+        session: null, 
+        error: '請先驗證您的電子郵件地址。檢查您的信箱（包含垃圾郵件資料夾）並點擊驗證連結。' 
+      };
+    }
+    
     return { session: data.session, error: null };
   };
 
   const signUp = async (email: string, password: string, role: UserRole, fullName?: string | null): Promise<{ user: SupabaseUser | null; error: string | null }> => {
     setIsLoadingAuth(true);
+    
+    // 註冊時要求電子郵件驗證
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: {
+          role,
+          full_name: fullName || email.split('@')[0],
+        }
+      }
     });
 
     if (authError) {
       setIsLoadingAuth(false);
+      console.error('註冊錯誤:', authError);
       return { user: null, error: authError.message || '註冊失敗。請稍後再試。' };
     }
+    
     if (!authData.user) {
       setIsLoadingAuth(false);
       return { user: null, error: '註冊成功，但未取得使用者資訊。' };
     }
 
+    console.log('註冊成功，用戶資料:', authData.user);
+    console.log('電子郵件確認狀態:', authData.user.email_confirmed_at ? '已確認' : '未確認');
+
+    // 如果用戶已確認郵件，則建立個人資料
+    if (authData.user.email_confirmed_at) {
+      await createUserProfile(authData.user, role, fullName);
+    }
+    
+    setIsLoadingAuth(false);
+    return { user: authData.user, error: null };
+  };
+
+  // 將建立個人資料的邏輯分離成獨立函數
+  const createUserProfile = async (user: SupabaseUser, role: UserRole, fullName?: string | null) => {
     const getAvatarText = () => {
         if (fullName) {
             const name = fullName.trim();
@@ -594,23 +847,21 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
                 return name.length > 2 ? name.substring(name.length - 2) : name;
             }
         }
-        return email.split('@')[0];
+        return user.email?.split('@')[0] || 'User';
     };
     
     const { error: profileError } = await supabase.from('profiles').insert({
-      id: authData.user.id,
+      id: user.id,
       role,
-      full_name: fullName || email.split('@')[0],
+      full_name: fullName || user.email?.split('@')[0] || 'User',
       avatar_url: `https://placehold.co/100x100.png?text=${encodeURIComponent(getAvatarText())}`,
       updated_at: new Date().toISOString(),
     });
 
     if (profileError) {
       console.error('建立個人資料時發生錯誤:', profileError);
-      return { user: authData.user, error: '註冊成功，但建立個人資料失敗: ' + profileError.message };
+      throw new Error('建立個人資料失敗: ' + profileError.message);
     }
-    
-    return { user: authData.user, error: null };
   };
 
   const logout = async (): Promise<{ error: string | null }> => {
@@ -701,6 +952,23 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     }
   };
 
+  const resendVerificationEmail = async (email: string): Promise<{ error: string | null }> => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+      if (error) throw error;
+      return { error: null };
+    } catch (error) {
+      console.error("Error resending verification email:", error);
+      return { error: "無法重新發送驗證郵件，請稍後再試。" };
+    }
+  };
+
   const updateUserEmail = async (newEmail: string): Promise<{ error: string | null }> => {
     if (!user) {
       return { error: "使用者未登入。" };
@@ -723,6 +991,8 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     passDog,
     getDogById,
     isLoadingDogs,
+    loadDogsWhenNeeded,
+    getLikedDogsCount,
 
     user,
     profile,
@@ -735,6 +1005,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     updateProfile,
     deleteAccount,
     sendPasswordResetEmail,
+    resendVerificationEmail,
     updateUserEmail,
   };
 

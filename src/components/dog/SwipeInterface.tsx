@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Dog } from '@/types';
 import { DogCard } from './DogCard';
 import { DogDetailsModal } from './DogDetailsModal';
@@ -14,12 +14,19 @@ export const SwipeInterface = () => {
     likedDogs, 
     likeDog, 
     passDog, 
-    isLoadingDogs
+    isLoadingDogs,
+    loadDogsWhenNeeded
   } = usePawsConnect();
   
   const [selectedDogDetails, setSelectedDogDetails] = useState<Dog | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [animationDirection, setAnimationDirection] = useState<'left' | 'right' | null>(null);
+
+  // 確保在 SwipeInterface 載入時觸發狗狗資料載入
+  useEffect(() => {
+    console.log('🐕 [SwipeInterface] 組件載入，觸發狗狗資料載入');
+    loadDogsWhenNeeded();
+  }, [loadDogsWhenNeeded]);
 
   const handleLike = (dogId: string) => {
     if (animationDirection) return; // Prevent multiple swipes while one is animating

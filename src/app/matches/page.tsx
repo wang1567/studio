@@ -11,9 +11,16 @@ import { DogDetailsModal } from '@/components/dog/DogDetailsModal';
 import { Heart, Info, Video } from 'lucide-react';
 
 export default function MatchesPage() {
-  const { likedDogs, getDogById } = usePawsConnect();
+  const { likedDogs, getDogById, loadDogsWhenNeeded, user } = usePawsConnect();
   const [selectedDogDetails, setSelectedDogDetails] = useState<Dog | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Load dogs data when needed for matches page
+  useEffect(() => {
+    if (user) {
+      loadDogsWhenNeeded();
+    }
+  }, [user, loadDogsWhenNeeded]);
 
   const handleShowDetails = (dogId: string) => {
     const dog = getDogById(dogId);

@@ -80,14 +80,42 @@ export const AuthForm = () => {
     try {
       if (authMode === 'login') {
         const { email, password } = data as LoginFormValues;
-        await login(email, password);
+        const result = await login(email, password);
+        if (result.error) {
+          toast({
+            title: '登入失敗',
+            description: result.error,
+            variant: 'destructive',
+          });
+          return;
+        }
         toast({ title: '登入成功', description: "歡迎回來！" });
         router.push('/');
       } else {
         const { email, password, role, fullName } = data as SignupFormValues;
-        await signUp(email, password, role, fullName);
-        toast({ title: '註冊成功', description: '歡迎！請檢查您的電子郵件以驗證您的帳戶。' });
-        router.push('/');
+        const result = await signUp(email, password, role, fullName);
+        if (result.error) {
+          toast({
+            title: '註冊失敗',
+            description: result.error,
+            variant: 'destructive',
+          });
+          return;
+        }
+        
+        if (result.user && !result.user.email_confirmed_at) {
+          toast({ 
+            title: '註冊成功！', 
+            description: '請檢查您的電子郵件並點擊驗證連結以完成註冊。',
+            duration: 8000,
+          });
+          // 導向到驗證等待頁面
+          router.push(`/auth/verify-email?email=${encodeURIComponent(email)}`);
+          return;
+        } else {
+          toast({ title: '註冊成功', description: '歡迎加入 PawsConnect！' });
+          router.push('/');
+        }
       }
     } catch (error: any) {
       toast({
