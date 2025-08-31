@@ -151,12 +151,12 @@ export const AuthForm = () => {
               <div>
                 <Label htmlFor="confirmPassword">確認密碼</Label>
                 <Input id="confirmPassword" type="password" {...register('confirmPassword')} placeholder="••••••••" />
-                {errors.confirmPassword && <p className="text-xs text-destructive mt-1">{errors.confirmPassword.message}</p>}
+                {'confirmPassword' in errors && errors.confirmPassword && <p className="text-xs text-destructive mt-1">{errors.confirmPassword.message}</p>}
               </div>
               <div>
                 <Label htmlFor="fullName">全名 (選填)</Label>
                 <Input id="fullName" type="text" {...register('fullName')} placeholder="您的姓名" />
-                {errors.fullName && <p className="text-xs text-destructive mt-1">{errors.fullName.message}</p>}
+                {'fullName' in errors && errors.fullName && <p className="text-xs text-destructive mt-1">{errors.fullName.message}</p>}
               </div>
               <div>
                 <Label>我的身份是...</Label>
@@ -167,7 +167,7 @@ export const AuthForm = () => {
                   </TabsList>
                 </Tabs>
                 <input type="hidden" {...register('role')} value={selectedRole} />
-                 {errors.role && <p className="text-xs text-destructive mt-1">{errors.role.message}</p>}
+                 {authMode === 'signup' && 'role' in errors && errors.role && <p className="text-xs text-destructive mt-1">{errors.role.message}</p>}
               </div>
             </>
           )}
