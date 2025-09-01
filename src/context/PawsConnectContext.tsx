@@ -82,7 +82,6 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
       notes: feedingScheduleData?.notes || defaultFeedingSchedule.notes,
     },
     vaccinationRecords,
-    liveStreamUrl: dbViewDog.live_stream_url || undefined,
     status: dbViewDog.status === 'Available' || dbViewDog.status === 'Pending' || dbViewDog.status === 'Adopted' ? dbViewDog.status : 'Available',
     location: dbViewDog.location || '未知地點',
     personalityTraits: personalityTraits.length > 0 ? personalityTraits : ['個性溫和'],

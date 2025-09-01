@@ -24,8 +24,6 @@ export const mockDogs: Dog[] = [
       { vaccineName: 'Rabies', dateAdministered: '2023-06-15', nextDueDate: '2026-06-15' },
       { vaccineName: 'DHPP', dateAdministered: '2023-06-15', nextDueDate: '2024-06-15' },
     ],
-    // Example from a service like RTSP.me, which provides an iframe-compatible URL
-    liveStreamUrl: 'https://rtsp.me/embed/iFbF7b9f/', 
     status: 'Available',
     location: 'Happy Paws Shelter',
     personalityTraits: ['Friendly', 'Energetic', 'Playful', 'Loyal'],
@@ -53,7 +51,6 @@ export const mockDogs: Dog[] = [
       { vaccineName: 'Rabies', dateAdministered: '2024-01-10' },
       { vaccineName: 'Bordetella', dateAdministered: '2024-01-10' },
     ],
-    liveStreamUrl: undefined, // This dog does not have a live stream
     status: 'Available',
     location: "Hope Animal Rescue",
     personalityTraits: ['Gentle', 'Sweet', 'Shy', 'Affectionate'],
@@ -81,7 +78,6 @@ export const mockDogs: Dog[] = [
       { vaccineName: 'Rabies', dateAdministered: '2022-08-01', nextDueDate: '2025-08-01' },
       { vaccineName: 'Leptospirosis', dateAdministered: '2024-03-01' },
     ],
-    liveStreamUrl: 'https://rtsp.me/embed/iFbF7b9f/', // Using the same example URL for demonstration
     status: 'Available',
     location: 'City Pound',
     personalityTraits: ['Loyal', 'Intelligent', 'Protective', 'Active'],

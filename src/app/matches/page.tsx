@@ -8,7 +8,7 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { DogDetailsModal } from '@/components/dog/DogDetailsModal';
-import { Heart, Info, Video } from 'lucide-react';
+import { Heart, Info } from 'lucide-react';
 
 export default function MatchesPage() {
   const { likedDogs, getDogById, loadDogsWhenNeeded, user } = usePawsConnect();
@@ -78,7 +78,7 @@ export default function MatchesPage() {
             </CardContent>
             <CardFooter className="p-4 border-t grid grid-cols-1 gap-2">
               <Button variant="outline" onClick={() => handleShowDetails(dog.id)} className="w-full">
-                <Info className="mr-2 h-4 w-4" /> 詳細資料 & 即時影像
+                <Info className="mr-2 h-4 w-4" /> 詳細資料
               </Button>
             </CardFooter>
           </Card>
