@@ -12,15 +12,27 @@ export const SwipeInterface = () => {
   const { 
     dogsToSwipe, 
     likedDogs, 
+    seenDogIds,
     likeDog, 
     passDog, 
     isLoadingDogs,
-    loadDogsWhenNeeded
+    loadDogsWhenNeeded,
+    breedFilter,
+    setBreedFilter,
+    getFilteredDogs
   } = usePawsConnect();
   
   const [selectedDogDetails, setSelectedDogDetails] = useState<Dog | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [animationDirection, setAnimationDirection] = useState<'left' | 'right' | null>(null);
+
+  // 根據篩選條件獲取要顯示的狗狗
+  const filteredDogs = getFilteredDogs();
+  
+  // 從篩選後的狗狗中找出還沒滑過的（包括按讚和按不喜歡的）
+  const availableDogsToSwipe = filteredDogs.filter(dog => 
+    !likedDogs.some(liked => liked.id === dog.id) && !seenDogIds.has(dog.id)
+  );
 
   // 確保在 SwipeInterface 載入時觸發狗狗資料載入
   useEffect(() => {
@@ -66,25 +78,35 @@ export const SwipeInterface = () => {
     );
   }
   
-  if (dogsToSwipe.length === 0) {
-     return (
-      <div className="flex flex-col items-center justify-center h-[70vh] text-center">
-        <h2 className="text-2xl font-headline mb-4">目前沒有更多狗狗了！</h2>
-        <p className="text-muted-foreground mb-6">您已看過所有可配對的狗狗。請稍後再來看看有沒有新的毛孩朋友！</p>
-         <p className="text-muted-foreground mt-4">您的配對清單中有 <span className="font-bold text-primary">{likedDogs.length}</span> 隻狗狗。</p>
+  if (availableDogsToSwipe.length === 0) {
+    const hasFilters = breedFilter.animalType !== 'all' || breedFilter.selectedBreeds.length > 0;
+    
+    return (
+      <div className="flex flex-col items-center justify-center h-[70vh] text-center space-y-4">
+        <h2 className="text-2xl font-headline mb-4">
+          {hasFilters ? '沒有符合篩選條件的動物' : '目前沒有更多動物了！'}
+        </h2>
+        <p className="text-muted-foreground mb-6">
+          {hasFilters 
+            ? '請調整您的篩選條件或稍後再來看看有沒有新的毛孩朋友！' 
+            : '您已看過所有可配對的動物。請稍後再來看看有沒有新的毛孩朋友！'
+          }
+        </p>
+        <p className="text-muted-foreground mt-4">
+          您的配對清單中有 <span className="font-bold text-primary">{likedDogs.length}</span> 個毛孩。
+        </p>
       </div>
     );
   }
 
-  const currentDisplayDog = dogsToSwipe[0];
-  const nextDisplayDog = dogsToSwipe[1];
+  const currentDisplayDog = availableDogsToSwipe[0];
+  const nextDisplayDog = availableDogsToSwipe[1];
 
   const getAnimationClass = () => {
     if (animationDirection === 'left') return 'animate-card-swipe-out-left';
     if (animationDirection === 'right') return 'animate-card-swipe-out-right';
     return 'animate-card-fade-in'; 
   };
-
 
   return (
     <div className="flex flex-col items-center justify-center relative h-[calc(100vh-200px)] min-h-[500px] overflow-hidden">

@@ -1,6 +1,6 @@
 "use client";
 
-import type { Dog, Profile, UserRole, HealthRecord, FeedingSchedule, VaccinationRecord } from '@/types';
+import type { Dog, Profile, UserRole, HealthRecord, FeedingSchedule, VaccinationRecord, BreedFilter } from '@/types';
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import type { User as SupabaseUser, Session as SupabaseSession, PostgrestError, AuthApiError } from '@supabase/supabase-js';
@@ -20,6 +20,11 @@ interface PawsConnectContextType {
   isLoadingDogs: boolean;
   loadDogsWhenNeeded: () => Promise<void>;
   getLikedDogsCount: () => Promise<number>;
+  
+  // 新增品種篩選功能
+  breedFilter: BreedFilter;
+  setBreedFilter: (filter: BreedFilter) => void;
+  getFilteredDogs: () => Dog[];
 
   user: SupabaseUser | null;
   profile: Profile | null;
@@ -32,7 +37,6 @@ interface PawsConnectContextType {
   updateProfile: (updates: { fullName?: string | null; avatarUrl?: string | null }) => Promise<{ success: boolean; error?: string | null; updatedProfile?: Profile | null }>;
   deleteAccount: () => Promise<{ error: string | null }>;
   sendPasswordResetEmail: (email: string) => Promise<{ error: string | null }>;
-  resendVerificationEmail: (email: string) => Promise<{ error: string | null }>;
   updateUserEmail: (newEmail: string) => Promise<{ error: string | null }>;
 }
 
@@ -61,14 +65,21 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
   const meaningfulConditions = healthRecordsData?.conditions?.filter(
     c => c && c.trim() && c.trim().toLowerCase() !== 'none' && c.trim() !== '無'
   ) || [];
+
+  // 根據品種名稱推斷動物類型
+  const getAnimalType = (breed: string): 'dog' | 'cat' => {
+    const catBreeds = ['英國短毛貓', '美國短毛貓', '波斯貓', '暹羅貓', '緬因貓', '布偶貓', '俄羅斯藍貓', '蘇格蘭摺耳貓', '孟加拉貓', '阿比西尼亞貓', 'Persian', 'Siamese', 'Maine Coon', 'British Shorthair', 'Ragdoll', 'Bengal', 'Abyssinian', 'Russian Blue', 'Scottish Fold', 'American Shorthair'];
+    const breedLower = breed.toLowerCase();
+    return catBreeds.some(catBreed => breedLower.includes(catBreed.toLowerCase()) || catBreed.toLowerCase().includes(breedLower)) ? 'cat' : 'dog';
+  };
   
   return {
     id: dbViewDog.id,
-    name: dbViewDog.name || '未命名狗狗',
+    name: dbViewDog.name || '未命名動物',
     breed: dbViewDog.breed || '未知品種',
     age: typeof dbViewDog.age === 'number' ? dbViewDog.age : 0,
     gender: dbViewDog.gender === 'Male' || dbViewDog.gender === 'Female' || dbViewDog.gender === 'Unknown' ? dbViewDog.gender : 'Unknown',
-    photos: photos.length > 0 ? photos : ['https://placehold.co/600x400.png?text=' + encodeURIComponent(dbViewDog.name || 'Dog')],
+    photos: photos.length > 0 ? photos : ['https://placehold.co/600x400.png?text=' + encodeURIComponent(dbViewDog.name || 'Pet')],
     description: dbViewDog.description || '暫無描述。',
     healthRecords: {
       lastCheckup: healthRecordsData?.lastCheckup || defaultHealthRecord.lastCheckup,
@@ -82,6 +93,7 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
       notes: feedingScheduleData?.notes || defaultFeedingSchedule.notes,
     },
     vaccinationRecords,
+    animalType: getAnimalType(dbViewDog.breed || ''),
     status: dbViewDog.status === 'Available' || dbViewDog.status === 'Pending' || dbViewDog.status === 'Adopted' ? dbViewDog.status : 'Available',
     location: dbViewDog.location || '未知地點',
     personalityTraits: personalityTraits.length > 0 ? personalityTraits : ['個性溫和'],
@@ -98,6 +110,12 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   const [dogsLoaded, setDogsLoaded] = useState(false);
   const [likedDogsCountCache, setLikedDogsCountCache] = useState<number | null>(null);
 
+  // 品種篩選狀態
+  const [breedFilter, setBreedFilter] = useState<BreedFilter>({
+    animalType: 'all',
+    selectedBreeds: []
+  });
+
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [session, setSession] = useState<SupabaseSession | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -105,6 +123,23 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const [isLiking, setIsLiking] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+
+  // 篩選狗狗的函數
+  const getFilteredDogs = useCallback((): Dog[] => {
+    return masterDogList.filter(dog => {
+      // 動物類型篩選
+      if (breedFilter.animalType !== 'all' && dog.animalType !== breedFilter.animalType) {
+        return false;
+      }
+      
+      // 品種篩選
+      if (breedFilter.selectedBreeds.length > 0 && !breedFilter.selectedBreeds.includes(dog.breed)) {
+        return false;
+      }
+      
+      return true;
+    });
+  }, [masterDogList, breedFilter]);
 
   // Load dogs data when needed (for swipe interface)
   const loadDogsWhenNeeded = useCallback(async () => {
@@ -158,10 +193,9 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     
     try {
       const { count, error } = await supabase
-        .from('user_dog_interactions')
+        .from('user_dog_likes')
         .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('liked', true);
+        .eq('user_id', user.id);
       
       if (error) {
         console.error('❌ [getLikedDogsCount] 資料庫查詢錯誤:', error);
@@ -261,7 +295,25 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
             avatar_url: user.user_metadata?.avatar_url || null,
           };
           
+          // 驗證必要欄位
+          if (!profileData.id) {
+            console.error('❌ [fetchAndUpdateProfile] 缺少用戶 ID');
+            setProfile(null);
+            return;
+          }
+          
+          if (!['adopter', 'caregiver'].includes(profileData.role)) {
+            console.error('❌ [fetchAndUpdateProfile] 無效的角色值:', profileData.role);
+            profileData.role = 'adopter' as const; // 使用預設值
+          }
+          
           console.log('📝 [fetchAndUpdateProfile] 即將插入的資料:', profileData);
+          console.log('📝 [fetchAndUpdateProfile] 用戶詳細資訊:', {
+            id: user.id,
+            email: user.email,
+            user_metadata: user.user_metadata,
+            email_confirmed_at: user.email_confirmed_at
+          });
           
           const { data: newProfileData, error: createError } = await supabase
             .from('profiles')
@@ -270,13 +322,15 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
             .single<DbProfile>();
 
           if (createError) {
-            console.error('❌ [fetchAndUpdateProfile] 創建 profile 失敗:', {
-              error: createError,
+            console.error('❌ [fetchAndUpdateProfile] 創建 profile 失敗:', createError);
+            console.error('❌ [fetchAndUpdateProfile] 詳細錯誤資訊:', {
               code: createError.code,
               message: createError.message,
               details: createError.details,
-              hint: createError.hint
+              hint: createError.hint,
+              rawError: JSON.stringify(createError)
             });
+            console.error('❌ [fetchAndUpdateProfile] 嘗試插入的資料:', profileData);
             
             // 如果是唯一性約束錯誤，嘗試更新現有記錄
             if (createError.code === '23505') {
@@ -294,6 +348,12 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
                 
               if (updateError) {
                 console.error('❌ [fetchAndUpdateProfile] 更新 profile 也失敗:', updateError);
+                console.error('❌ [fetchAndUpdateProfile] 更新錯誤詳情:', {
+                  code: updateError.code,
+                  message: updateError.message,
+                  details: updateError.details,
+                  hint: updateError.hint
+                });
                 setProfile(null);
                 return;
               } else if (updateData) {
@@ -311,7 +371,19 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
               }
             }
             
-            setProfile(null);
+            // 對於其他類型的錯誤，創建臨時 profile 以避免應用程式卡住
+            console.log('🆘 [fetchAndUpdateProfile] 創建臨時 profile 以避免載入卡住');
+            const tempProfile = {
+              id: user.id,
+              role: 'adopter' as UserRole,
+              fullName: user.user_metadata?.full_name || user.email?.split('@')[0] || '新用戶',
+              avatarUrl: user.user_metadata?.avatar_url || null,
+              updatedAt: new Date().toISOString(),
+            };
+            
+            setProfile(tempProfile);
+            console.log('⚠️ [fetchAndUpdateProfile] 使用臨時 profile，下次登入將重新嘗試創建');
+            return;
           } else if (newProfileData) {
             console.log('✅ [fetchAndUpdateProfile] 成功創建新的 profile:', newProfileData);
             
@@ -502,7 +574,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
  const loadInitialDogData = useCallback(async (currentUserId: string | null) => {
     setIsLoadingDogs(true);
-    console.log(`🔄 開始載入狗狗資料 - userId: ${currentUserId}`);
+    console.log(`🔄 開始載入動物資料 - userId: ${currentUserId}`);
     
     if (!currentUserId) {
         setMasterDogList([]);
@@ -513,13 +585,13 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     }
 
     try {
-        console.log('📝 查詢已按讚的狗狗...');
+        console.log('📝 查詢已按讚的動物...');
         const likedDogsPromise = supabase
             .from('user_dog_likes')
             .select(`dogs_for_adoption_view(*)`)
             .eq('user_id', currentUserId);
 
-        console.log('📝 查詢所有狗狗...');
+        console.log('📝 查詢所有動物...');
         const allDogsPromise = supabase
             .from('dogs_for_adoption_view')
             .select('*');
@@ -544,31 +616,31 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
         const { data: allDogsData, error: allDogsError } = allDogsResult;
         if (allDogsError) {
-            console.error("❌ 查詢所有狗狗時發生錯誤:", allDogsError);
+            console.error("❌ 查詢所有動物時發生錯誤:", allDogsError);
             throw allDogsError;
         }
         const allDogs = allDogsData.map(mapDbDogToDogType);
         setMasterDogList(allDogs);
         
-        console.log(`✅ 載入了 ${allDogs.length} 隻狗狗到 masterDogList`);
-        console.log('狗狗 IDs:', allDogs.map(d => ({ id: d.id, name: d.name })));
+        console.log(`✅ 載入了 ${allDogs.length} 隻動物到 masterDogList`);
+        console.log('動物 IDs:', allDogs.map(d => ({ id: d.id, name: d.name })));
 
-        const likedDogIdsSet = new Set(userLikedDogs.map(d => d.id));
+        const likedDogIdsSet = new Set<string>(userLikedDogs.map(d => d.id));
         setSeenDogIds(likedDogIdsSet);
         
         const unseenDogs = allDogs.filter(dog => !likedDogIdsSet.has(dog.id));
         setDogsToSwipe(unseenDogs);
         
-        console.log(`📊 統計: 總共${allDogs.length}隻狗狗，已按讚${userLikedDogs.length}隻，待滑卡${unseenDogs.length}隻`);
+        console.log(`📊 統計: 總共${allDogs.length}隻動物，已按讚${userLikedDogs.length}隻，待滑卡${unseenDogs.length}隻`);
 
     } catch (error) {
-        console.error("Unhandled error during dog data fetch:", error);
+        console.error("載入動物資料時發生未處理的錯誤:", error);
         setMasterDogList([]);
         setDogsToSwipe([]);
         setLikedDogs([]);
         toast({
             title: "資料載入失敗",
-            description: "無法載入狗狗資料，請稍後重新整理。",
+            description: "無法載入動物資料，請稍後重新整理。",
             variant: "destructive",
         });
     } finally {
@@ -592,7 +664,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     console.log(`🐕 開始按讚流程 - dogId: ${dogId}, userId: ${user?.id}`);
     
     if (isLiking.has(dogId)) {
-      console.log(`⚠️ 狗狗 ${dogId} 正在處理中，跳過重複按讚`);
+      console.log(`⚠️ 動物 ${dogId} 正在處理中，跳過重複按讚`);
       return;
     }
 
@@ -601,78 +673,24 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       toast({
         variant: "destructive",
         title: "需要登入",
-        description: "請先登入才能按讚狗狗！",
+        description: "請先登入才能按讚動物！",
       });
       return;
     }
 
     const dog = masterDogList.find(d => d.id === dogId);
     if (!dog) {
-      console.log(`❌ 找不到狗狗 ${dogId} 在 masterDogList 中`);
+      console.log(`❌ 找不到動物 ${dogId} 在 masterDogList 中`);
       return;
     }
 
-    console.log(`✅ 找到狗狗: ${dog.name} (${dogId})`);
+    console.log(`✅ 找到動物: ${dog.name} (${dogId})`);
 
     try {
       setIsLiking(prev => new Set(prev).add(dogId));
       passDog(dogId); 
 
       console.log(`📝 準備插入資料庫: user_id=${user.id}, dog_id=${dogId}`);
-      
-      // 檢查狗狗是否在不同的資料表中存在
-      console.log('🔍 開始檢查狗狗在各資料表中的存在性...');
-      
-      // 檢查 pets 資料表的詳細資訊
-      const { data: petExists, error: petCheckError } = await supabase
-        .from('pets')
-        .select('id, name, created_at')
-        .eq('id', dogId);
-      
-      console.log('🔍 檢查 pets 資料表:', { petExists, petCheckError });
-      console.log('在 pets 資料表中找到的數量:', petExists ? petExists.length : 0);
-      
-      // 如果找不到，檢查 pets 資料表中的所有記錄
-      if (!petExists || petExists.length === 0) {
-        const { data: allPets, error: allPetsError } = await supabase
-          .from('pets')
-          .select('id, name')
-          .limit(10);
-        
-        console.log('🔍 pets 資料表中的所有寵物（前10筆）:', { allPets, allPetsError });
-        console.log('pets 資料表總記錄數:', allPets ? allPets.length : 0);
-      }
-      
-      // 檢查 dogs_for_adoption_view 視圖（我們知道狗狗在這裡）
-      const { data: viewExists, error: viewCheckError } = await supabase
-        .from('dogs_for_adoption_view')
-        .select('id')
-        .eq('id', dogId);
-        
-      console.log('🔍 檢查 dogs_for_adoption_view:', { viewExists, viewCheckError });
-      console.log('在 dogs_for_adoption_view 中找到的數量:', viewExists ? viewExists.length : 0);
-      
-      // 既然狗狗存在於 view 中，我們繼續進行
-      if (viewCheckError) {
-        console.log('⚠️ 查詢 view 時發生錯誤:', viewCheckError.message);
-        toast({
-          variant: "destructive",
-          title: "按讚失敗",
-          description: "無法驗證寵物資料",
-        });
-        return;
-      } else if (!viewExists || viewExists.length === 0) {
-        console.log('⚠️ 狗狗不存在於 dogs_for_adoption_view 中（這不應該發生）');
-        toast({
-          variant: "destructive",
-          title: "按讚失敗",
-          description: "此寵物資料異常，無法按讚",
-        });
-        return;
-      } else {
-        console.log('✅ 狗狗確實存在於 dogs_for_adoption_view 中，繼續插入流程');
-        console.log('⚠️ 注意：狗狗在 view 中存在但在 pets 表中不存在，可能有資料同步問題');
-      }
       
       const insertData = { 
         user_id: user.id, 
@@ -681,9 +699,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       };
       
       console.log('插入資料:', insertData);
-      console.log('🔄 開始執行資料庫插入操作...');
-      console.log('目標資料表: user_dog_likes');
-      console.log('當前用戶身份:', { userId: user.id, userEmail: user.email });
 
       // 先嘗試檢查是否已經存在該記錄
       const { data: existingLike, error: checkError } = await supabase
@@ -697,7 +712,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       if (checkError) {
         console.log('⚠️ 檢查現有記錄時發生錯誤:', checkError.message);
       } else if (existingLike && existingLike.length > 0) {
-        console.log('✅ 用戶已經按讚過此狗狗，跳過插入');
+        console.log('✅ 用戶已經按讚過此動物，跳過插入');
         return;
       }
 
@@ -722,7 +737,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         
         // 處理不同類型的錯誤
         if (insertError.code === '23505') {
-          console.log(`⚠️ 重複按讚 - 用戶 ${user.id} 已經喜歡狗狗 ${dogId}`);
+          console.log(`⚠️ 重複按讚 - 用戶 ${user.id} 已經喜歡動物 ${dogId}`);
         } else {
             console.error("❌ 資料庫插入錯誤:", insertError);
             toast({
@@ -738,26 +753,37 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
             return; 
         }
       } else {
-        console.log(`✅ 成功插入資料庫 - 狗狗 ${dogId} 已被用戶 ${user.id} 按讚`);
+        console.log(`✅ 成功插入資料庫 - 動物 ${dogId} 已被用戶 ${user.id} 按讚`);
       }
 
-      setLikedDogs(prevLikedDogs => {
-        if (!prevLikedDogs.some(d => d.id === dog.id)) {
-          const newLikedDogs = [...prevLikedDogs, dog];
-          // Update cache when successfully liking a dog
-          setLikedDogsCountCache(newLikedDogs.length);
-          return newLikedDogs;
+      // 更新 React 狀態
+      setLikedDogs(prev => {
+        const alreadyLiked = prev.some(d => d.id === dogId);
+        if (alreadyLiked) {
+          console.log(`⚠️ 動物 ${dogId} 已在 likedDogs 中`);
+          return prev;
         }
-        return prevLikedDogs;
+        
+        const newLikedDogs = [...prev, dog];
+        console.log(`✅ 動物 ${dog.name} 已加入 likedDogs，目前總數: ${newLikedDogs.length}`);
+        setLikedDogsCountCache(newLikedDogs.length);
+        return newLikedDogs;
+      });
+
+      setSeenDogIds(prev => new Set(prev).add(dogId));
+
+      toast({
+        title: "加入配對清單！",
+        description: `${dog.name} 已加入您的配對清單。`,
       });
 
     } catch (error) {
-        console.error("An unexpected error occurred during the like operation:", error);
-        toast({
-          variant: "destructive",
-          title: "發生未預期的錯誤",
-          description: "按讚時發生問題，您的操作已被復原。",
-        });
+      console.error("❌ 按讚動物時發生錯誤:", error);
+      toast({
+        variant: "destructive",
+        title: "按讚失敗",
+        description: "無法加入配對清單，請稍後再試。",
+      });
     } finally {
       setIsLiking(prev => {
         const newSet = new Set(prev);
@@ -769,6 +795,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
   const passDog = (dogId: string) => {
     setSeenDogIds(prevSeenDogIds => new Set(prevSeenDogIds).add(dogId));
+    setDogsToSwipe(prevDogs => prevDogs.filter(dog => dog.id !== dogId));
   };
   
   const getDogById = (dogId: string): Dog | undefined => {
@@ -783,15 +810,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
       setIsLoadingAuth(false);
       return { session: null, error: error.message || '登入失敗。請檢查您的帳號密碼。' };
     }
-
-    // 檢查電子郵件是否已驗證
-    if (data.user && !data.user.email_confirmed_at) {
-      setIsLoadingAuth(false);
-      return { 
-        session: null, 
-        error: '請先驗證您的電子郵件地址。檢查您的信箱（包含垃圾郵件資料夾）並點擊驗證連結。' 
-      };
-    }
     
     return { session: data.session, error: null };
   };
@@ -799,12 +817,11 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   const signUp = async (email: string, password: string, role: UserRole, fullName?: string | null): Promise<{ user: SupabaseUser | null; error: string | null }> => {
     setIsLoadingAuth(true);
     
-    // 註冊時要求電子郵件驗證
+    // 直接註冊，不需要電子郵件驗證
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
         data: {
           role,
           full_name: fullName || email.split('@')[0],
@@ -824,11 +841,22 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     }
 
     console.log('註冊成功，用戶資料:', authData.user);
-    console.log('電子郵件確認狀態:', authData.user.email_confirmed_at ? '已確認' : '未確認');
 
-    // 如果用戶已確認郵件，則建立個人資料
-    if (authData.user.email_confirmed_at) {
+    // 等待 session 完全建立
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // 直接建立個人資料，不需要等待電子郵件確認
+    try {
       await createUserProfile(authData.user, role, fullName);
+      console.log('✅ 個人資料建立成功');
+    } catch (error) {
+      console.error('❌ 建立個人資料失敗:', error);
+      // 不阻止註冊流程，但回傳錯誤資訊
+      setIsLoadingAuth(false);
+      return { 
+        user: authData.user, 
+        error: `註冊成功，但建立個人資料時發生錯誤: ${error instanceof Error ? error.message : '未知錯誤'}` 
+      };
     }
     
     setIsLoadingAuth(false);
@@ -837,29 +865,84 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
   // 將建立個人資料的邏輯分離成獨立函數
   const createUserProfile = async (user: SupabaseUser, role: UserRole, fullName?: string | null) => {
-    const getAvatarText = () => {
-        if (fullName) {
-            const name = fullName.trim();
-            // Check for CJK characters
-            const cjkRegex = /[\u4e00-\u9fa5]/;
-            if (cjkRegex.test(name)) {
-                return name.length > 2 ? name.substring(name.length - 2) : name;
-            }
+    try {
+      // 等待一小段時間，確保 auth session 完全建立
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // 重新取得當前 session 確保權限正確
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session) {
+        throw new Error('用戶 session 尚未建立，請稍後重試');
+      }
+      
+      // 首先檢查是否已經存在個人資料
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      
+      if (existingProfile) {
+        console.log('✅ [createUserProfile] 個人資料已存在，跳過建立');
+        return;
+      }
+      
+      const getAvatarText = () => {
+          if (fullName) {
+              const name = fullName.trim();
+              // Check for CJK characters
+              const cjkRegex = /[\u4e00-\u9fa5]/;
+              if (cjkRegex.test(name)) {
+                  return name.length > 2 ? name.substring(name.length - 2) : name;
+              }
+          }
+          return user.email?.split('@')[0] || 'User';
+      };
+      
+      const profileData = {
+        id: user.id,
+        role,
+        full_name: fullName || user.email?.split('@')[0] || 'User',
+        avatar_url: `https://placehold.co/100x100.png?text=${encodeURIComponent(getAvatarText())}`,
+        updated_at: new Date().toISOString(),
+      };
+      
+      console.log('📝 [createUserProfile] 創建 profile 資料:', profileData);
+      console.log('📝 [createUserProfile] 使用 session:', session.session.user.id);
+      
+      // 嘗試建立個人資料，如果失敗則重試
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        const { error: profileError } = await supabase.from('profiles').insert(profileData);
+        
+        if (!profileError) {
+          console.log('✅ [createUserProfile] 成功建立個人資料');
+          return;
         }
-        return user.email?.split('@')[0] || 'User';
-    };
-    
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: user.id,
-      role,
-      full_name: fullName || user.email?.split('@')[0] || 'User',
-      avatar_url: `https://placehold.co/100x100.png?text=${encodeURIComponent(getAvatarText())}`,
-      updated_at: new Date().toISOString(),
-    });
-
-    if (profileError) {
-      console.error('建立個人資料時發生錯誤:', profileError);
-      throw new Error('建立個人資料失敗: ' + profileError.message);
+        
+        retryCount++;
+        console.warn(`⚠️ [createUserProfile] 建立個人資料失敗 (嘗試 ${retryCount}/${maxRetries}):`, profileError);
+        
+        if (retryCount >= maxRetries) {
+          console.error('❌ [createUserProfile] 建立個人資料時發生錯誤:', profileError);
+          console.error('❌ [createUserProfile] 詳細錯誤資訊:', {
+            code: profileError.code,
+            message: profileError.message,
+            details: profileError.details,
+            hint: profileError.hint,
+            rawError: JSON.stringify(profileError)
+          });
+          throw new Error('建立個人資料失敗: ' + (profileError.message || '未知錯誤'));
+        }
+        
+        // 等待後重試
+        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+      }
+    } catch (error: any) {
+      console.error('💥 [createUserProfile] 建立個人資料時發生未預期錯誤:', error);
+      throw new Error('建立個人資料失敗: ' + (error.message || '未知錯誤'));
     }
   };
 
@@ -885,25 +968,38 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     }
     setIsUpdatingProfile(true);
     try {
-      const profileUpsertData: Partial<DbProfile> & { id: string } = {
-        id: user.id,
-        updated_at: new Date().toISOString(),
-        role: profile?.role || 'adopter', // Provide a default role if needed
-      };
-      if (updates.fullName !== undefined) {
-        profileUpsertData.full_name = updates.fullName;
-      }
-      if (updates.avatarUrl !== undefined) {
-        profileUpsertData.avatar_url = updates.avatarUrl;
+      // 確保有當前的 session
+      const { data: session } = await supabase.auth.getSession();
+      if (!session.session) {
+        return { success: false, error: "用戶 session 無效，請重新登入。" };
       }
 
+      const profileUpdateData: Partial<DbProfile> = {
+        updated_at: new Date().toISOString(),
+      };
+      
+      if (updates.fullName !== undefined) {
+        profileUpdateData.full_name = updates.fullName;
+      }
+      if (updates.avatarUrl !== undefined) {
+        profileUpdateData.avatar_url = updates.avatarUrl;
+      }
+
+      console.log('📝 [updateProfile] 更新資料:', profileUpdateData);
+      console.log('📝 [updateProfile] 用戶 ID:', user.id);
+
+      // 使用 update 而不是 upsert，更明確地針對用戶的記錄
       const { data, error } = await supabase
         .from('profiles')
-        .upsert(profileUpsertData)
+        .update(profileUpdateData)
+        .eq('id', user.id)
         .select()
         .single<DbProfile>();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ [updateProfile] 更新個人資料錯誤:', error);
+        throw error;
+      }
 
       if (data) {
         const newProfile: Profile = {
@@ -932,39 +1028,111 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
        toast({ title: "錯誤", description: "使用者未登入。", variant: "destructive" });
        return { error: "User not logged in" };
     }
-    const { error } = await supabase.rpc('delete_user_account');
-    if (error) {
-      console.error('Error deleting account:', error);
-      return { error: error.message };
+    
+    try {
+      console.log('🗑️ [deleteAccount] 開始刪除帳號流程...');
+      
+      // 定義需要清理的資料表（按外鍵依賴順序）
+      // 只包含確實存在的資料表
+      const tablesToCleanup = [
+        { name: 'pets', userField: 'user_id' },                    // 寵物記錄
+        { name: 'user_dog_likes', userField: 'user_id' },          // 按讚記錄
+        { name: 'profiles', userField: 'id' }                      // 個人資料（使用 id 而非 user_id）
+      ];
+      
+      // 嘗試清理可能存在的其他資料表
+      const optionalTables = [
+        { name: 'user_fcm_tokens', userField: 'user_id' },         // FCM tokens（可能存在）
+        { name: 'health_records', userField: 'user_id' },          // 健康記錄（如果有 user_id）
+        { name: 'feeding_records', userField: 'user_id' },         // 餵食記錄（如果有 user_id）
+        { name: 'vaccine_records', userField: 'user_id' }          // 疫苗記錄（如果有 user_id）
+      ];
+      
+      // 清理必要的資料表
+      for (const table of tablesToCleanup) {
+        console.log(`🗑️ [deleteAccount] 正在刪除 ${table.name} 資料...`);
+        
+        try {
+          const { error: tableError } = await supabase
+            .from(table.name)
+            .delete()
+            .eq(table.userField, user.id);
+          
+          if (tableError) {
+            console.error(`❌ [deleteAccount] 刪除 ${table.name} 失敗:`, tableError);
+            return { error: `刪除 ${table.name} 失敗: ${tableError.message}` };
+          } else {
+            console.log(`✅ [deleteAccount] 成功刪除 ${table.name}`);
+          }
+        } catch (tableErr: any) {
+          console.error(`💥 [deleteAccount] 刪除 ${table.name} 時發生錯誤:`, tableErr);
+          return { error: `刪除 ${table.name} 時發生錯誤: ${tableErr.message}` };
+        }
+      }
+      
+      // 嘗試清理可選的資料表（錯誤不會阻止流程）
+      for (const table of optionalTables) {
+        console.log(`🔍 [deleteAccount] 嘗試清理 ${table.name} 資料...`);
+        
+        try {
+          const { error: tableError } = await supabase
+            .from(table.name)
+            .delete()
+            .eq(table.userField, user.id);
+          
+          if (tableError) {
+            console.log(`⚠️ [deleteAccount] ${table.name} 清理失敗（可能不存在）:`, tableError.message);
+          } else {
+            console.log(`✅ [deleteAccount] 成功清理 ${table.name}`);
+          }
+        } catch (tableErr: any) {
+          console.log(`⚠️ [deleteAccount] ${table.name} 不存在或無法存取:`, tableErr.message);
+        }
+      }
+      
+      // 最後刪除 auth 用戶
+      console.log('🗑️ [deleteAccount] 正在刪除認證帳號...');
+      const { error: authError } = await supabase.rpc('delete_user_account');
+      
+      if (authError) {
+        console.error('❌ [deleteAccount] 刪除認證帳號失敗:', authError);
+        
+        // 如果仍然有外鍵約束錯誤，提供更詳細的錯誤訊息
+        if (authError.code === '23503') {
+          const referencedTable = authError.details?.match(/table "(\w+)"/)?.[1];
+          return { 
+            error: `刪除帳號失敗：還有資料在 ${referencedTable || '其他資料表'} 中引用此帳號。請聯繫客服協助處理。` 
+          };
+        }
+        
+        return { error: `刪除帳號失敗: ${authError.message}` };
+      }
+      
+      console.log('✅ [deleteAccount] 帳號刪除成功');
+      
+      // 清除本地資料
+      localStorage.removeItem('pawsconnect_user');
+      localStorage.removeItem('pawsconnect_profile');
+      localStorage.removeItem('pawsconnect_session');
+      
+      return { error: null };
+      
+    } catch (error: any) {
+      console.error('💥 [deleteAccount] 刪除帳號時發生未預期錯誤:', error);
+      return { error: `刪除帳號時發生錯誤: ${error.message || '未知錯誤'}` };
     }
-    return { error: null };
   };
 
   const sendPasswordResetEmail = async (email: string): Promise<{ error: string | null }> => {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `https://7jjl14w0-3000.asse.devtunnels.ms/reset-password`
+      });
       if (error) throw error;
       return { error: null };
     } catch (error) {
       console.error("Error sending password reset email:", error);
       return { error: "無法發送密碼重設郵件，請稍後再試。" };
-    }
-  };
-
-  const resendVerificationEmail = async (email: string): Promise<{ error: string | null }> => {
-    try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: email,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`
-        }
-      });
-      if (error) throw error;
-      return { error: null };
-    } catch (error) {
-      console.error("Error resending verification email:", error);
-      return { error: "無法重新發送驗證郵件，請稍後再試。" };
     }
   };
 
@@ -993,6 +1161,11 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     loadDogsWhenNeeded,
     getLikedDogsCount,
 
+    // 品種篩選功能
+    breedFilter,
+    setBreedFilter,
+    getFilteredDogs,
+
     user,
     profile,
     session,
@@ -1004,7 +1177,6 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     updateProfile,
     deleteAccount,
     sendPasswordResetEmail,
-    resendVerificationEmail,
     updateUserEmail,
   };
 

@@ -166,7 +166,7 @@ export default function ResetPasswordPage() {
       console.log('📧 [ResetPassword] 重新發送重設郵件:', email);
       
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`
+        redirectTo: `https://7jjl14w0-3000.asse.devtunnels.ms/reset-password`
       });
       
       if (error) {

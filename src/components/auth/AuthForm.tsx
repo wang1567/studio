@@ -103,19 +103,9 @@ export const AuthForm = () => {
           return;
         }
         
-        if (result.user && !result.user.email_confirmed_at) {
-          toast({ 
-            title: '註冊成功！', 
-            description: '請檢查您的電子郵件並點擊驗證連結以完成註冊。',
-            duration: 8000,
-          });
-          // 導向到驗證等待頁面
-          router.push(`/auth/verify-email?email=${encodeURIComponent(email)}`);
-          return;
-        } else {
-          toast({ title: '註冊成功', description: '歡迎加入 PawsConnect！' });
-          router.push('/');
-        }
+        // 註冊成功，直接導向首頁
+        toast({ title: '註冊成功', description: '歡迎加入 PawsConnect！' });
+        router.push('/');
       }
     } catch (error: any) {
       toast({
