@@ -1,7 +1,7 @@
 "use client";
 
 import Link from 'next/link';
-import { Dog, Heart, UserCircle, LogIn, LogOut, Sun, Moon, FileText, Menu } from 'lucide-react';
+import { Dog, Heart, UserCircle, LogIn, LogOut, Sun, Moon, FileText, Menu, Home, Building2, Cross, PawPrint, Clipboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -26,6 +26,11 @@ export const Navbar = () => {
 
   const navItems = [
     { href: '/', label: '滑卡配對', icon: <Dog className="h-5 w-5" />, requiresAuth: true },
+    { href: '/shelter-animals', label: '收容所動物', icon: <Home className="h-5 w-5" />, requiresAuth: false },
+    { href: '/tas-adoption', label: 'TAS認養中心', icon: <Building2 className="h-5 w-5" />, requiresAuth: false },
+    { href: '/veterinary-hospital', label: '動物醫院', icon: <Cross className="h-5 w-5" />, requiresAuth: false },
+    { href: '/pet-service', label: '寵物專區', icon: <PawPrint className="h-5 w-5" />, requiresAuth: false },
+    { href: '/pet-registration', label: '寵物登記站', icon: <Clipboard className="h-5 w-5" />, requiresAuth: false },
     { href: '/matches', label: '我的配對', icon: <Heart className="h-5 w-5" />, requiresAuth: true },
     { href: '/adoption-info', label: '領養資訊', icon: <FileText className="h-5 w-5" />, requiresAuth: false },
   ];

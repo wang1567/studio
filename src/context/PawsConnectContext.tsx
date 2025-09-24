@@ -605,33 +605,82 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
         const { data: likedDogsData, error: likedDogsError } = likedDogsResult;
         if (likedDogsError) {
-            console.error("Error fetching liked dogs from Supabase:", likedDogsError);
-            throw likedDogsError;
+            console.error("Error fetching liked dogs from Supabase:", {
+                error: likedDogsError,
+                message: likedDogsError.message,
+                details: likedDogsError.details,
+                hint: likedDogsError.hint,
+                code: likedDogsError.code
+            });
+            
+            // 檢查是否是資料表/視圖不存在的錯誤
+            if (likedDogsError.code === 'PGRST116' || likedDogsError.message?.includes('does not exist')) {
+                console.error("🚨 資料庫表格/視圖不存在:", {
+                    suggestion: "請執行 fix_dogs_view.sql 修復資料庫",
+                    affectedTable: likedDogsError.message?.includes('user_dog_likes') ? 'user_dog_likes' : 'dogs_for_adoption_view'
+                });
+                toast({
+                    title: "資料庫錯誤",
+                    description: "dogs_for_adoption_view 視圖不存在，請聯繫管理員修復資料庫",
+                    variant: "destructive",
+                });
+            }
+            
+            // 設置空陣列繼續執行，避免整個應用崩潰
+            setLikedDogs([]);
+        } else {
+            const userLikedDbDogs = (likedDogsData || [])
+                .map((likeRecord: any) => likeRecord.dogs_for_adoption_view as DbDog | null)
+                .filter((dog): dog is DbDog => !!dog);
+            const userLikedDogs = userLikedDbDogs.map(mapDbDogToDogType);
+            setLikedDogs(userLikedDogs);
         }
-        const userLikedDbDogs = (likedDogsData || [])
-            .map((likeRecord: any) => likeRecord.dogs_for_adoption_view as DbDog | null)
-            .filter((dog): dog is DbDog => !!dog);
-        const userLikedDogs = userLikedDbDogs.map(mapDbDogToDogType);
-        setLikedDogs(userLikedDogs);
 
         const { data: allDogsData, error: allDogsError } = allDogsResult;
         if (allDogsError) {
-            console.error("❌ 查詢所有動物時發生錯誤:", allDogsError);
-            throw allDogsError;
+            console.error("❌ 查詢所有動物時發生錯誤:", {
+                error: allDogsError,
+                message: allDogsError.message,
+                details: allDogsError.details,
+                hint: allDogsError.hint,
+                code: allDogsError.code
+            });
+            
+            // 檢查是否是視圖不存在的錯誤
+            if (allDogsError.code === 'PGRST116' || allDogsError.message?.includes('does not exist')) {
+                console.error("🚨 dogs_for_adoption_view 視圖不存在:", {
+                    suggestion: "請執行 fix_dogs_view.sql 修復資料庫"
+                });
+                toast({
+                    title: "視圖不存在",
+                    description: "dogs_for_adoption_view 視圖缺失，請執行修復 SQL",
+                    variant: "destructive",
+                });
+            }
+            
+            // 設置空陣列避免應用崩潰
+            setMasterDogList([]);
+            setDogsToSwipe([]);
+            setIsLoadingDogs(false);
+            return;
         }
+        
+        // 處理所有動物資料
         const allDogs = allDogsData.map(mapDbDogToDogType);
         setMasterDogList(allDogs);
         
         console.log(`✅ 載入了 ${allDogs.length} 隻動物到 masterDogList`);
         console.log('動物 IDs:', allDogs.map(d => ({ id: d.id, name: d.name })));
 
-        const likedDogIdsSet = new Set<string>(userLikedDogs.map(d => d.id));
+        // 獲取已按讚的狗 IDs（從已設置的 likedDogs state 中獲取）
+        const currentLikedDogs = likedDogs; // 使用當前狀態
+        const likedDogIdsSet = new Set<string>(currentLikedDogs.map((d: Dog) => d.id));
         setSeenDogIds(likedDogIdsSet);
         
         const unseenDogs = allDogs.filter(dog => !likedDogIdsSet.has(dog.id));
         setDogsToSwipe(unseenDogs);
         
-        console.log(`📊 統計: 總共${allDogs.length}隻動物，已按讚${userLikedDogs.length}隻，待滑卡${unseenDogs.length}隻`);
+        console.log(`📊 統計: 總共${allDogs.length}隻動物，已按讚${currentLikedDogs.length}隻，待滑卡${unseenDogs.length}隻`);
 
     } catch (error) {
         console.error("載入動物資料時發生未處理的錯誤:", error);
