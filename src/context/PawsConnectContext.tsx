@@ -500,22 +500,33 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
           setSession(sessionData);
           setIsLoadingAuth(false);
           
-          // 檢查 session 是否過期
-          const expiresAt = new Date(sessionData.expires_at || sessionData.expires_in);
+          console.log('✅ [initializeSession] 已從快取恢復用戶狀態');
+          
+          // 檢查 session 是否過期（給予 30 分鐘緩衝時間）
+          const expiresAt = new Date((sessionData.expires_at || 0) * 1000);
+          const bufferTime = 30 * 60 * 1000; // 30 分鐘
           const now = new Date();
           
-          if (expiresAt > now) {
-            // Session 未過期，在背景驗證並更新
-            supabase.auth.getSession().then(({ data: { session } }) => {
-              if (session && session.user.id === userData.id) {
-                setSession(session);
-                localStorage.setItem('pawsconnect_session', JSON.stringify(session));
-                // 背景更新 profile
-                fetchAndUpdateProfile(session.user);
-              }
-            });
+          if (expiresAt.getTime() > now.getTime() + bufferTime) {
+            console.log('🟢 [initializeSession] Session 有效，無需重新驗證');
+            
+            // 在非常低優先級的背景中靜默更新（不影響 UI）
+            setTimeout(() => {
+              supabase.auth.getSession().then(({ data: { session } }) => {
+                if (session && session.user.id === userData.id) {
+                  setSession(session);
+                  localStorage.setItem('pawsconnect_session', JSON.stringify(session));
+                  console.log('🔄 [initializeSession] 背景靜默更新 session 完成');
+                }
+              }).catch(() => {
+                // 靜默失敗，不影響用戶體驗
+                console.log('⚠️ [initializeSession] 背景更新失敗，但不影響用戶體驗');
+              });
+            }, 2000); // 延遲 2 秒執行，確保不影響頁面載入
             
             return;
+          } else {
+            console.log('⏰ [initializeSession] Session 即將過期，需要更新');
           }
         } catch (e) {
           console.log('緩存數據無效，清除並重新驗證');
@@ -567,14 +578,24 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     initializeSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
+      async (event, newSession) => {
+        console.log(`🔔 [AuthStateChange] Event: ${event}`);
+        
         const currentUser = newSession?.user ?? null;
         const previousUserId = user?.id;
-
-        // 只有在用戶真正改變時才設置載入狀態
         const userChanged = currentUser?.id !== previousUserId;
         
-        if (userChanged) {
+        console.log(`👤 [AuthStateChange] User changed: ${userChanged}, Current: ${currentUser?.id}, Previous: ${previousUserId}`);
+        
+        // 避免在 INITIAL_SESSION 時重複處理（因為我們已經在 initializeSession 中處理了）
+        if (event === 'INITIAL_SESSION' && !userChanged) {
+          console.log('⏭️ [AuthStateChange] 跳過 INITIAL_SESSION，已在初始化中處理');
+          return;
+        }
+        
+        // 只有在真正的用戶變更時才顯示載入狀態
+        if (userChanged && event !== 'TOKEN_REFRESHED') {
+          console.log('🔄 [AuthStateChange] 設置載入狀態');
           setIsLoadingAuth(true);
         }
         
@@ -583,26 +604,36 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
         
         try {
           if (currentUser && userChanged) {
-              await fetchProfileAndSet(currentUser);
-              // 緩存用戶和 session 資料
-              localStorage.setItem('pawsconnect_user', JSON.stringify(currentUser));
-              if (newSession) {
-                localStorage.setItem('pawsconnect_session', JSON.stringify(newSession));
-              }
-          } else if (!currentUser) {
-              setProfile(null);
-              resetDogState();
-              // 清除緩存
-              localStorage.removeItem('pawsconnect_user');
-              localStorage.removeItem('pawsconnect_profile');
-              localStorage.removeItem('pawsconnect_session');
+            console.log('✅ [AuthStateChange] 處理新用戶登入');
+            await fetchProfileAndSet(currentUser);
+            // 緩存用戶和 session 資料
+            localStorage.setItem('pawsconnect_user', JSON.stringify(currentUser));
+            if (newSession) {
+              localStorage.setItem('pawsconnect_session', JSON.stringify(newSession));
+            }
+          } else if (!currentUser && userChanged) {
+            console.log('👋 [AuthStateChange] 處理用戶登出');
+            setProfile(null);
+            resetDogState();
+            // 清除緩存
+            localStorage.removeItem('pawsconnect_user');
+            localStorage.removeItem('pawsconnect_profile');
+            localStorage.removeItem('pawsconnect_session');
+          } else if (currentUser && event === 'TOKEN_REFRESHED') {
+            console.log('🔄 [AuthStateChange] Token 已刷新，靜默更新緩存');
+            // Token 刷新時只更新緩存，不重新載入 profile
+            localStorage.setItem('pawsconnect_user', JSON.stringify(currentUser));
+            if (newSession) {
+              localStorage.setItem('pawsconnect_session', JSON.stringify(newSession));
+            }
           }
         } catch (error) {
-          console.error('Error handling auth state change:', error);
+          console.error('❌ [AuthStateChange] Error handling auth state change:', error);
         } finally {
-          // 只有在用戶變更時才重置載入狀態
-          if (userChanged || !currentUser) {
+          // 只有在真正的用戶變更時才重置載入狀態
+          if (userChanged && event !== 'TOKEN_REFRESHED') {
             setIsLoadingAuth(false);
+            console.log('✅ [AuthStateChange] 載入狀態已重置');
           }
         }
       }
