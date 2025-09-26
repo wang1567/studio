@@ -49,8 +49,13 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
   const photos = Array.isArray(dbViewDog.photos) ? dbViewDog.photos.filter((p): p is string => typeof p === 'string') : [];
   const personalityTraits = Array.isArray(dbViewDog.personality_traits) ? dbViewDog.personality_traits.filter((p): p is string => typeof p === 'string') : [];
   
-  const healthRecordsData = (dbViewDog.health_records as unknown) as HealthRecord | null;
-  const feedingScheduleData = (dbViewDog.feeding_schedule as unknown) as FeedingSchedule | null;
+  // 處理健康記錄資料 - 視圖返回的是 JSON 陣列
+  const healthRecordsArray = Array.isArray(dbViewDog.health_records) ? dbViewDog.health_records : [];
+  const latestHealthRecord = healthRecordsArray.length > 0 ? (healthRecordsArray[0] as any) : null;
+  
+  // 處理餵食計畫資料 - 視圖返回的是 JSON 陣列  
+  const feedingScheduleArray = Array.isArray(dbViewDog.feeding_schedule) ? dbViewDog.feeding_schedule : [];
+  const activeFeedingSchedule = feedingScheduleArray.length > 0 ? (feedingScheduleArray[0] as any) : null;
 
   // Normalize vaccination records coming from JSON aggregate
   const vaccinationRecordsRaw = (dbViewDog.vaccination_records as unknown) as any[] | null;
@@ -62,9 +67,39 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
       }))
     : [];
 
-  const meaningfulConditions = healthRecordsData?.conditions?.filter(
-    c => c && c.trim() && c.trim().toLowerCase() !== 'none' && c.trim() !== '無'
-  ) || [];
+  // 生成健康狀態描述
+  const generateHealthConditions = (healthRecord: any) => {
+    if (!healthRecord) return [];
+    
+    const conditions = [];
+    
+    // 檢查體溫
+    if (healthRecord.temperature) {
+      const temp = parseFloat(healthRecord.temperature);
+      if (temp > 39.5) conditions.push('體溫偏高');
+      else if (temp < 37.0) conditions.push('體溫偏低');
+      else conditions.push('體溫正常');
+    }
+    
+    // 檢查心率
+    if (healthRecord.heart_rate) {
+      const hr = parseInt(healthRecord.heart_rate);
+      if (hr > 160) conditions.push('心率偏高');
+      else if (hr < 70) conditions.push('心率偏低'); 
+      else conditions.push('心率正常');
+    }
+    
+    // 檢查血氧
+    if (healthRecord.oxygen_level) {
+      const o2 = parseFloat(healthRecord.oxygen_level);
+      if (o2 < 95) conditions.push('血氧偏低');
+      else conditions.push('血氧正常');
+    }
+    
+    return conditions.length > 0 ? conditions : ['健康狀況良好'];
+  };
+
+  const meaningfulConditions = latestHealthRecord ? generateHealthConditions(latestHealthRecord) : [];
 
   // 根據品種名稱推斷動物類型
   const getAnimalType = (breed: string): 'dog' | 'cat' => {
@@ -82,15 +117,23 @@ const mapDbDogToDogType = (dbViewDog: DbDog): Dog => {
     photos: photos.length > 0 ? photos : ['https://placehold.co/600x400.png?text=' + encodeURIComponent(dbViewDog.name || 'Pet')],
     description: dbViewDog.description || '暫無描述。',
     healthRecords: {
-      lastCheckup: healthRecordsData?.lastCheckup || defaultHealthRecord.lastCheckup,
+      lastCheckup: latestHealthRecord?.recorded_at 
+        ? new Date(latestHealthRecord.recorded_at).toLocaleDateString('zh-TW')
+        : defaultHealthRecord.lastCheckup,
       conditions: meaningfulConditions,
-      notes: healthRecordsData?.notes || defaultHealthRecord.notes,
+      notes: latestHealthRecord 
+        ? `最新記錄：體溫 ${latestHealthRecord.temperature || 'N/A'}°C, 心率 ${latestHealthRecord.heart_rate || 'N/A'} BPM, 血氧 ${latestHealthRecord.oxygen_level || 'N/A'}%`
+        : defaultHealthRecord.notes,
     },
     feedingSchedule: {
-      foodType: feedingScheduleData?.foodType || defaultFeedingSchedule.foodType,
-      timesPerDay: typeof feedingScheduleData?.timesPerDay === 'number' ? feedingScheduleData.timesPerDay : defaultFeedingSchedule.timesPerDay,
-      portionSize: feedingScheduleData?.portionSize || defaultFeedingSchedule.portionSize,
-      notes: feedingScheduleData?.notes || defaultFeedingSchedule.notes,
+      foodType: activeFeedingSchedule?.food_type || defaultFeedingSchedule.foodType,
+      timesPerDay: activeFeedingSchedule?.days?.length || defaultFeedingSchedule.timesPerDay,
+      portionSize: activeFeedingSchedule?.amount 
+        ? `${activeFeedingSchedule.amount}g`
+        : defaultFeedingSchedule.portionSize,
+      notes: activeFeedingSchedule 
+        ? `餵食時間：${activeFeedingSchedule.time || '未設定'}, 食物：${activeFeedingSchedule.food_type || '未指定'}`
+        : defaultFeedingSchedule.notes,
     },
     vaccinationRecords,
     animalType: getAnimalType(dbViewDog.breed || ''),
@@ -605,33 +648,82 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
 
         const { data: likedDogsData, error: likedDogsError } = likedDogsResult;
         if (likedDogsError) {
-            console.error("Error fetching liked dogs from Supabase:", likedDogsError);
-            throw likedDogsError;
+            console.error("Error fetching liked dogs from Supabase:", {
+                error: likedDogsError,
+                message: likedDogsError.message,
+                details: likedDogsError.details,
+                hint: likedDogsError.hint,
+                code: likedDogsError.code
+            });
+            
+            // 檢查是否是資料表/視圖不存在的錯誤
+            if (likedDogsError.code === 'PGRST116' || likedDogsError.message?.includes('does not exist')) {
+                console.error("🚨 資料庫表格/視圖不存在:", {
+                    suggestion: "請執行 fix_dogs_view.sql 修復資料庫",
+                    affectedTable: likedDogsError.message?.includes('user_dog_likes') ? 'user_dog_likes' : 'dogs_for_adoption_view'
+                });
+                toast({
+                    title: "資料庫錯誤",
+                    description: "dogs_for_adoption_view 視圖不存在，請聯繫管理員修復資料庫",
+                    variant: "destructive",
+                });
+            }
+            
+            // 設置空陣列繼續執行，避免整個應用崩潰
+            setLikedDogs([]);
+        } else {
+            const userLikedDbDogs = (likedDogsData || [])
+                .map((likeRecord: any) => likeRecord.dogs_for_adoption_view as DbDog | null)
+                .filter((dog): dog is DbDog => !!dog);
+            const userLikedDogs = userLikedDbDogs.map(mapDbDogToDogType);
+            setLikedDogs(userLikedDogs);
         }
-        const userLikedDbDogs = (likedDogsData || [])
-            .map((likeRecord: any) => likeRecord.dogs_for_adoption_view as DbDog | null)
-            .filter((dog): dog is DbDog => !!dog);
-        const userLikedDogs = userLikedDbDogs.map(mapDbDogToDogType);
-        setLikedDogs(userLikedDogs);
 
         const { data: allDogsData, error: allDogsError } = allDogsResult;
         if (allDogsError) {
-            console.error("❌ 查詢所有動物時發生錯誤:", allDogsError);
-            throw allDogsError;
+            console.error("❌ 查詢所有動物時發生錯誤:", {
+                error: allDogsError,
+                message: allDogsError.message,
+                details: allDogsError.details,
+                hint: allDogsError.hint,
+                code: allDogsError.code
+            });
+            
+            // 檢查是否是視圖不存在的錯誤
+            if (allDogsError.code === 'PGRST116' || allDogsError.message?.includes('does not exist')) {
+                console.error("🚨 dogs_for_adoption_view 視圖不存在:", {
+                    suggestion: "請執行 fix_dogs_view.sql 修復資料庫"
+                });
+                toast({
+                    title: "視圖不存在",
+                    description: "dogs_for_adoption_view 視圖缺失，請執行修復 SQL",
+                    variant: "destructive",
+                });
+            }
+            
+            // 設置空陣列避免應用崩潰
+            setMasterDogList([]);
+            setDogsToSwipe([]);
+            setIsLoadingDogs(false);
+            return;
         }
+        
+        // 處理所有動物資料
         const allDogs = allDogsData.map(mapDbDogToDogType);
         setMasterDogList(allDogs);
         
         console.log(`✅ 載入了 ${allDogs.length} 隻動物到 masterDogList`);
         console.log('動物 IDs:', allDogs.map(d => ({ id: d.id, name: d.name })));
 
-        const likedDogIdsSet = new Set<string>(userLikedDogs.map(d => d.id));
+        // 獲取已按讚的狗 IDs（從已設置的 likedDogs state 中獲取）
+        const currentLikedDogs = likedDogs; // 使用當前狀態
+        const likedDogIdsSet = new Set<string>(currentLikedDogs.map((d: Dog) => d.id));
         setSeenDogIds(likedDogIdsSet);
         
         const unseenDogs = allDogs.filter(dog => !likedDogIdsSet.has(dog.id));
         setDogsToSwipe(unseenDogs);
         
-        console.log(`📊 統計: 總共${allDogs.length}隻動物，已按讚${userLikedDogs.length}隻，待滑卡${unseenDogs.length}隻`);
+        console.log(`📊 統計: 總共${allDogs.length}隻動物，已按讚${currentLikedDogs.length}隻，待滑卡${unseenDogs.length}隻`);
 
     } catch (error) {
         console.error("載入動物資料時發生未處理的錯誤:", error);
