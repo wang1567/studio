@@ -335,10 +335,7 @@ export const SwipeInterface = () => {
         )}
       </div>
 
-      {/* 鍵盤快捷鍵提示 */}
-      <div className={styles.keyboardHint}>
-        <p>⌨️ 快捷鍵：← 略過 | → 喜歡</p>
-      </div>
+      
 
       <DogDetailsModal dog={selectedDogDetails} isOpen={isModalOpen} onClose={handleCloseModal} />
     </div>
