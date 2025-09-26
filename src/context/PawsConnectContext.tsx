@@ -650,6 +650,37 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
   }, []);
 
 
+  // 載入收容所動物按讚記錄
+  const loadShelterAnimalLikes = useCallback(async (currentUserId: string) => {
+    try {
+      console.log('📚 載入收容所動物按讚記錄...');
+      
+      const { data, error } = await supabase
+        .from('user_shelter_animal_likes')
+        .select('*')
+        .eq('user_id', currentUserId)
+        .order('liked_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ 載入收容所動物按讚記錄失敗:', error);
+        return [];
+      }
+
+      console.log(`✅ 成功載入 ${data?.length || 0} 筆收容所動物按讚記錄`);
+
+      // 將收容所動物資料轉換為 Dog 格式
+      const shelterDogsLiked = data?.map(record => 
+        convertShelterAnimalToDog(record.shelter_animal_data as ShelterAnimalSearchResult)
+      ) || [];
+
+      return shelterDogsLiked;
+
+    } catch (error) {
+      console.error('❌ 載入收容所動物按讚記錄時發生錯誤:', error);
+      return [];
+    }
+  }, []);
+
  const loadInitialDogData = useCallback(async (currentUserId: string | null) => {
     setIsLoadingDogs(true);
     console.log(`🔄 開始載入動物資料 - userId: ${currentUserId}`);
@@ -711,7 +742,15 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
                 .map((likeRecord: any) => likeRecord.dogs_for_adoption_view as DbDog | null)
                 .filter((dog): dog is DbDog => !!dog);
             const userLikedDogs = userLikedDbDogs.map(mapDbDogToDogType);
-            setLikedDogs(userLikedDogs);
+            
+            // 載入收容所動物按讚記錄
+            const shelterDogsLiked = await loadShelterAnimalLikes(currentUserId);
+            
+            // 合併寵物狗和收容所動物
+            const allLikedDogs = [...userLikedDogs, ...shelterDogsLiked];
+            console.log(`📊 總配對數量: ${allLikedDogs.length} (寵物狗: ${userLikedDogs.length}, 收容所動物: ${shelterDogsLiked.length})`);
+            
+            setLikedDogs(allLikedDogs);
         }
 
         const { data: allDogsData, error: allDogsError } = allDogsResult;
@@ -935,28 +974,57 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     }
 
     try {
-      // 轉換為標準 Dog 格式
-      const convertedDog = convertShelterAnimalToDog(shelterAnimal);
-      console.log(`✅ 轉換收容所動物: ${convertedDog.name} (${convertedDog.id})`);
+      // 檢查是否已經按讚過
+      const { data: existingLike } = await supabase
+        .from('user_shelter_animal_likes')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('shelter_animal_id', shelterAnimal.id)
+        .single();
 
-      // 檢查是否已經按讚過（僅檢查本地狀態）
-      const existingLike = likedDogs.find(dog => dog.id === convertedDog.id);
       if (existingLike) {
-        console.log('⚠️ 已經按讚過此動物');
+        console.log('⚠️ 已經按讚過此收容所動物');
         toast({
           title: "已在配對清單中",
-          description: `${convertedDog.name} 已經在您的配對清單中了！`,
+          description: `這隻動物已經在您的配對清單中了！`,
         });
         return;
       }
 
-      // 對於收容所動物，我們暫時只在本地狀態中管理
-      // 不插入到 user_dog_likes 表，因為這些動物可能不存在於 pets 表中
-      console.log('📝 收容所動物直接加入本地配對清單，不存入資料庫');
+      // 準備插入資料
+      const insertData = {
+        user_id: user.id,
+        shelter_animal_id: shelterAnimal.id,
+        shelter_animal_data: shelterAnimal
+      };
 
-      console.log('✅ 成功加入配對清單');
+      console.log('📤 插入收容所動物按讚記錄:', insertData);
+
+      // 插入到 user_shelter_animal_likes 表
+      const { data, error: insertError } = await supabase
+        .from('user_shelter_animal_likes')
+        .insert(insertData)
+        .select();
       
-      // 更新本地狀態
+      if (insertError) {
+        console.error('❌ 收容所動物按讚記錄插入失敗:', insertError);
+        
+        if (insertError.code === '23505') {
+          console.log('⚠️ 重複按讚，忽略錯誤');
+          toast({
+            title: "已在配對清單中",
+            description: "這隻動物已經在您的配對清單中了！",
+          });
+          return;
+        } else {
+          throw insertError;
+        }
+      }
+
+      console.log('✅ 成功儲存收容所動物按讚記錄到資料庫');
+
+      // 轉換為標準 Dog 格式並更新本地狀態
+      const convertedDog = convertShelterAnimalToDog(shelterAnimal);
       setLikedDogs(prev => [...prev, convertedDog]);
       
       // 清除快取的數量
