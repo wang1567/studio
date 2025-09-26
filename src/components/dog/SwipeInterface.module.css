@@ -50,12 +50,18 @@
 /* 滑動提示樣式 */
 .swipeHint {
     position: absolute;
-    top: 1rem;
+    top: -3rem;
     left: 50%;
     transform: translateX(-50%);
     font-size: 0.875rem;
     color: hsl(var(--muted-foreground));
-    z-index: 10;
+    z-index: 5;
+    background-color: hsl(var(--background) / 0.8);
+    padding: 0.5rem 1rem;
+    border-radius: 1rem;
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+    white-space: nowrap;
 }
 
 .keyboardHint {

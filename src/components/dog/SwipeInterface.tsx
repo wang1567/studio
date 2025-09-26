@@ -290,7 +290,7 @@ export const SwipeInterface = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center relative h-[calc(100vh-200px)] min-h-[500px] overflow-hidden">
+    <div className="flex flex-col items-center justify-center relative h-[calc(100vh-200px)] min-h-[500px] overflow-hidden pt-16">
       {/* 滑動提示 */}
       <div className={styles.swipeHint}>
         💡 左右滑動或使用按鈕進行配對
