@@ -1,8 +1,10 @@
 "use client";
 
 import type { Dog, Profile, UserRole, HealthRecord, FeedingSchedule, VaccinationRecord, BreedFilter } from '@/types';
+import type { ShelterAnimalSearchResult } from '@/types/shelter-animals';
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { convertShelterAnimalToDog } from '@/utils/shelterAnimalConverter';
 import type { User as SupabaseUser, Session as SupabaseSession, PostgrestError, AuthApiError } from '@supabase/supabase-js';
 import type { Database } from '@/types/supabase';
 import { useToast } from '@/hooks/use-toast';
@@ -17,6 +19,8 @@ interface PawsConnectContextType {
   likeDog: (dogId: string) => Promise<void>;
   passDog: (dogId:string) => void;
   getDogById: (dogId: string) => Dog | undefined;
+  // 新增：收容所動物按讚功能
+  likeShelterAnimal: (shelterAnimal: ShelterAnimalSearchResult) => Promise<void>;
   isLoadingDogs: boolean;
   loadDogsWhenNeeded: () => Promise<void>;
   getLikedDogsCount: () => Promise<number>;
@@ -916,6 +920,63 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     }
   };
 
+  // 收容所動物按讚功能
+  const likeShelterAnimal = async (shelterAnimal: ShelterAnimalSearchResult) => {
+    console.log(`🏠 開始收容所動物按讚流程 - animalId: ${shelterAnimal.id}, userId: ${user?.id}`);
+    
+    if (!user) {
+      console.log("❌ 用戶未登入");
+      toast({
+        variant: "destructive",
+        title: "需要登入",
+        description: "請先登入才能按讚動物！",
+      });
+      return;
+    }
+
+    try {
+      // 轉換為標準 Dog 格式
+      const convertedDog = convertShelterAnimalToDog(shelterAnimal);
+      console.log(`✅ 轉換收容所動物: ${convertedDog.name} (${convertedDog.id})`);
+
+      // 檢查是否已經按讚過（僅檢查本地狀態）
+      const existingLike = likedDogs.find(dog => dog.id === convertedDog.id);
+      if (existingLike) {
+        console.log('⚠️ 已經按讚過此動物');
+        toast({
+          title: "已在配對清單中",
+          description: `${convertedDog.name} 已經在您的配對清單中了！`,
+        });
+        return;
+      }
+
+      // 對於收容所動物，我們暫時只在本地狀態中管理
+      // 不插入到 user_dog_likes 表，因為這些動物可能不存在於 pets 表中
+      console.log('📝 收容所動物直接加入本地配對清單，不存入資料庫');
+
+      console.log('✅ 成功加入配對清單');
+      
+      // 更新本地狀態
+      setLikedDogs(prev => [...prev, convertedDog]);
+      
+      // 清除快取的數量
+      setLikedDogsCountCache(null);
+
+      toast({
+        title: "加入配對成功！",
+        description: `${convertedDog.name} 已加入您的配對清單`,
+      });
+
+    } catch (error) {
+      console.error("❌ 收容所動物按讚失敗:", error);
+      toast({
+        variant: "destructive",
+        title: "按讚失敗",
+        description: "無法加入配對清單，請稍後再試。",
+      });
+    }
+  };
+
   const passDog = (dogId: string) => {
     setSeenDogIds(prevSeenDogIds => new Set(prevSeenDogIds).add(dogId));
     setDogsToSwipe(prevDogs => prevDogs.filter(dog => dog.id !== dogId));
@@ -1278,6 +1339,7 @@ export const PawsConnectProvider = ({ children }: { children: React.ReactNode })
     likedDogs,
     seenDogIds,
     likeDog,
+    likeShelterAnimal,
     passDog,
     getDogById,
     isLoadingDogs,

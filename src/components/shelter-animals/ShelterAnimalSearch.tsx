@@ -18,6 +18,7 @@ import type {
   FilterParams
 } from '@/types/shelter-animals';
 import { Heart, MapPin, Phone, Calendar, Info } from 'lucide-react';
+import { usePawsConnect } from '@/context/PawsConnectContext';
 
 interface ShelterAnimalSearchProps {
   onAnimalSelect?: (animal: ShelterAnimalSearchResult) => void;
@@ -30,6 +31,8 @@ export function ShelterAnimalSearch({
   showFilters = true,
   maxResults = 2500 
 }: ShelterAnimalSearchProps) {
+  // 使用配對功能
+  const { likeShelterAnimal, likedDogs, user } = usePawsConnect();
   const [animals, setAnimals] = useState<ShelterAnimalSearchResult[]>([]);
   const [cities, setCities] = useState<City[]>([]);
   const [shelters, setShelters] = useState<Shelter[]>([]);
@@ -48,6 +51,21 @@ export function ShelterAnimalSearch({
   
   // 追蹤是否為分頁切換
   const [shouldScrollOnLoad, setShouldScrollOnLoad] = useState(false);
+
+  // 檢查動物是否已被按讚
+  const isLiked = (animal: ShelterAnimalSearchResult) => {
+    return likedDogs.some(likedDog => likedDog.id === animal.id);
+  };
+
+  // 處理按讚動物
+  const handleLikeAnimal = async (animal: ShelterAnimalSearchResult) => {
+    if (!user) {
+      // 這個應該不會發生，因為按鈕已經被禁用了
+      return;
+    }
+    
+    await likeShelterAnimal(animal);
+  };
 
   // 處理動物選擇邏輯
   const handleAnimalSelect = (animal: ShelterAnimalSearchResult) => {
@@ -382,14 +400,20 @@ export function ShelterAnimalSearch({
                     {/* 愛心按鈕 */}
                     <Button
                       size="sm"
-                      variant="secondary"
-                      className="absolute top-2 right-2 rounded-full w-8 h-8 p-0"
+                      variant={isLiked(animal) ? "default" : "secondary"}
+                      className={`absolute top-2 right-2 rounded-full w-8 h-8 p-0 ${
+                        isLiked(animal) 
+                          ? 'bg-red-500 hover:bg-red-600 text-white' 
+                          : 'hover:bg-red-50'
+                      }`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        // TODO: 實作收藏功能
+                        handleLikeAnimal(animal);
                       }}
+                      disabled={!user}
+                      title={!user ? '請先登入' : isLiked(animal) ? '已加入配對' : '加入配對'}
                     >
-                      <Heart className="h-4 w-4" />
+                      <Heart className={`h-4 w-4 ${isLiked(animal) ? 'fill-current' : ''}`} />
                     </Button>
                   </div>
 
