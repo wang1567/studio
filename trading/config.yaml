@@ -1,0 +1,27 @@
+# Paper Trading Configuration
+universe:
+  - "2330"   # TSMC
+  - "2317"   # Hon Hai
+  - "2454"   # MediaTek
+  - "2412"   # Chunghwa Telecom
+  - "2882"   # Cathay Financial
+
+strategy:
+  sma_fast: 20
+  sma_slow: 60
+
+portfolio:
+  initial_cash: 1_000_000   # NTD
+  max_positions: 3
+  lot_size: 1000             # 1 張 = 1000 股
+  position_pct: 0.33         # 每筆最多用可用資金的 33%
+
+execution:
+  fee_rate: 0.001425          # 手續費 0.1425%（未折扣）
+  tax_sell_rate_stock: 0.003  # 股票交易稅 0.3%
+  tax_sell_rate_etf: 0.001    # ETF 交易稅 0.1%
+  slippage_bp: 5              # 滑價 5 bp
+
+storage:
+  fills_path: "./fills.csv"
+  orders_path: "./pending_orders.csv"
